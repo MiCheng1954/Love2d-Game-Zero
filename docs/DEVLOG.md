@@ -120,6 +120,17 @@ zero/
 - `src/systems/collision.lua`：碰撞系统，圆形碰撞检测、子弹vs敌人、敌人vs玩家、死亡清理
 - `src/states/game.lua`：接入所有系统，自动锁定最近敌人攻击，死亡后跳转 gameover，右上角调试面板
 
+## [2026-03-20 17:34:33] Phase 5 — 升级奖励选择界面
+
+**做了什么：** 实现两级升级奖励选择 UI，接入灵魂刷新，修复帧内崩溃与状态重置 Bug
+
+- `config/upgrades.lua`：新增升级奖励配置表，大类（weapon/stat/skill）→子选项结构，每项含 `apply(player)` 函数，配置驱动无需改逻辑
+- `src/states/upgrade.lua`：重写升级界面，两阶段状态机（大类→子选项），↑↓ 导航，Enter 确认，ESC 返回大类，← 消耗10灵魂刷新子选项顺序
+- `src/states/stateManager.lua`：新增 `push/pop` 覆盖层机制，push 不调用底层 exit，pop 不调用底层 enter，保留游戏完整状态
+- `src/states/game.lua`：升级回调改用 `_pendingUpgrade` 标志位延迟跳转，当帧 update 末尾统一处理，改用 `StateManager.push/pop` 保留玩家数据
+- **修复**：升级回调同步触发 `StateManager.switch` 导致帧内 `_spawner` 被置 nil 崩溃
+- **修复**：`StateManager.switch("game")` 重新调用 `Game:enter()` 导致玩家数据重置、等级不保存
+
 ## [2026-03-20 17:09:58] Phase 4 — 掉落物、吸附、经验升级
 
 **做了什么：** 接入掉落物系统、自动吸附、经验升级、升级提示浮窗

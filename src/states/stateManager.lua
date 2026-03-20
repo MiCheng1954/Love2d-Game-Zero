@@ -12,6 +12,9 @@ local _currentState = nil
 -- 已注册的所有状态表，key 为状态名，value 为状态对象
 local _states = {}
 
+-- 状态栈，用于 push/pop（覆盖层不销毁底层状态）
+local _stateStack = {}
+
 -- 注册一个状态
 -- @param name:  状态名称（字符串，如 "menu"、"game"）
 -- @param state: 状态对象（需包含 enter/exit/update/draw 方法）
@@ -33,6 +36,34 @@ function StateManager.switch(name, ...)
     if _currentState.enter then
         _currentState:enter(...)
     end
+end
+
+-- 将新状态压入栈顶（不销毁当前状态，当前状态仅暂停）
+-- 用于升级界面、背包等覆盖层场景
+-- @param name: 目标状态名称
+-- @param ...:  传递给新状态 enter() 的额外参数
+function StateManager.push(name, ...)
+    -- 将当前状态压入栈（不调用 exit，保留完整数据）
+    if _currentState then
+        table.insert(_stateStack, _currentState)
+    end
+    -- 进入新覆盖状态
+    _currentState = _states[name]
+    assert(_currentState, "StateManager: 未找到状态 [" .. name .. "]")
+    if _currentState.enter then
+        _currentState:enter(...)
+    end
+end
+
+-- 弹出当前覆盖状态，恢复上一层状态（不调用底层状态的 enter）
+function StateManager.pop()
+    -- 退出当前覆盖状态
+    if _currentState and _currentState.exit then
+        _currentState:exit()
+    end
+    -- 恢复栈顶状态
+    _currentState = table.remove(_stateStack)
+    assert(_currentState, "StateManager: 状态栈已空，无法 pop")
 end
 
 -- 获取当前状态名称（调试用）

@@ -23,6 +23,7 @@ local _projectiles = {}    -- 当前场景所有投射物列表
 local _pickups     = {}    -- 当前场景所有掉落物列表
 local _spawner     = nil   -- 敌人生成系统实例
 local _experience  = nil   -- 经验升级系统实例
+local _pendingUpgrade = nil  -- 待处理的升级跳转数据（当帧 update 结束后再切换，防止 exit 破坏帧内状态）
 
 -- 自动攻击配置
 local AUTO_ATTACK_INTERVAL = 0.5   -- 自动攻击间隔（秒）
@@ -64,23 +65,26 @@ function Game:enter()
     -- 初始化经验系统，注册升级回调
     _experience = Experience.new(_player)
     _experience:onLevelUp(function(player, newLevel)
-        -- 触发屏幕升级提示浮窗（Phase 5 替换为完整奖励界面）
-        _levelUpNotice.active = true
-        _levelUpNotice.level  = newLevel
-        _levelUpNotice.timer  = _levelUpNotice.duration
+        -- 不立即切换，先记录待处理数据，等当帧 update 结束后再跳转
+        -- 防止 StateManager.switch 触发 exit() 清空 _spawner 等变量，导致帧内后续逻辑崩溃
+        _pendingUpgrade = {
+            player = player,
+            newLevel = newLevel,
+        }
     end)
 end
 
 -- 退出游戏状态时调用
 function Game:exit()
     Timer.clear()
-    _player      = nil
-    _camera      = nil
-    _enemies     = {}
-    _projectiles = {}
-    _pickups     = {}
-    _spawner     = nil
-    _experience  = nil
+    _player          = nil
+    _camera          = nil
+    _enemies         = {}
+    _projectiles     = {}
+    _pickups         = {}
+    _spawner         = nil
+    _experience      = nil
+    _pendingUpgrade  = nil
 end
 
 -- 每帧更新游戏逻辑
@@ -160,6 +164,20 @@ function Game:update(dt)
     if Input.isPressed("cancel") then
         local StateManager = require("src.states.stateManager")
         StateManager.switch("menu")
+    end
+
+    -- 处理待跳转升级界面（必须放在 update 最末尾，防止 exit 破坏帧内状态）
+    if _pendingUpgrade then
+        local data = _pendingUpgrade
+        _pendingUpgrade = nil
+        local StateManager = require("src.states.stateManager")
+        -- push 而非 switch：保留游戏状态不调用 exit，选完后 pop 回来不调用 enter
+        StateManager.push("upgrade", {
+            player = data.player,
+            onDone = function()
+                StateManager.pop()
+            end,
+        })
     end
 end
 
