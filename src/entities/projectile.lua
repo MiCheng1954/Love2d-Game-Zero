@@ -63,9 +63,24 @@ function Projectile:onHit(target)
     self._hit    = true
     self._isDead = true
 
-    -- 计算暴击
+    -- 计算暴击（使用投射物自带的暴击率）
     local isCrit = math.random() < (self._critRate or 0.05)
-    return target:takeDamage(self._damage, isCrit)
+
+    -- Phase 7.2：若投射物携带了自定义暴击倍率（来自玩家 critDamage + psb 加成），
+    -- 临时覆盖目标的 critDamage，确保正确应用玩家羁绊加成
+    local origCritDamage = nil
+    if isCrit and self._critDamage and self._critDamage ~= target.critDamage then
+        origCritDamage    = target.critDamage
+        target.critDamage = self._critDamage
+    end
+
+    local dmg = target:takeDamage(self._damage, isCrit)
+
+    if origCritDamage ~= nil then
+        target.critDamage = origCritDamage
+    end
+
+    return dmg
 end
 
 -- 将投射物绘制到屏幕上

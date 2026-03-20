@@ -2,6 +2,7 @@
     src/systems/bag.lua
     背包管理系统
     Phase 6：武器背包系统
+    Phase 7：接入相邻增益（Adjacency）和武器羁绊（Synergy）计算
 
     背包是一个二维网格，每格可被武器占据。
     所有放入背包的武器均视为"装备中"，会独立触发自动攻击。
@@ -14,6 +15,24 @@ Bag.__index = Bag
 
 local MAX_ROWS = 6
 local MAX_COLS = 8
+
+-- 延迟加载，避免循环依赖
+local _Adjacency = nil
+local _Synergy   = nil
+
+local function getAdjacency()
+    if not _Adjacency then
+        _Adjacency = require("src.systems.adjacency")
+    end
+    return _Adjacency
+end
+
+local function getSynergy()
+    if not _Synergy then
+        _Synergy = require("src.systems.synergy")
+    end
+    return _Synergy
+end
 
 -- ============================================================
 -- 构造
@@ -28,6 +47,19 @@ function Bag.new(rows, cols)
     self.cols    = cols or 2
     self._grid   = {}   -- [row][col] = instanceId 或 nil
     self._weapons = {}  -- instanceId → Weapon 实例
+    self._activeSynergies    = {}  -- Phase 7：当前激活的羁绊列表（由 Synergy.recalculate 填充）
+    -- Phase 7.2：Tag 羁绊系统新增字段
+    self._tagCounts          = {}  -- { 速射=2, 精准=1, … } 用于 UI 显示进度
+    self._playerSynergyBonus = {   -- 玩家全局属性加成（作用于 game.lua 各系统）
+        speed       = 0,
+        damage      = 0,
+        critChance  = 0,
+        critMult    = 0,
+        maxHP       = 0,
+        bulletSpeed = 0,
+        pickupRange = 0,
+        expMult     = 0,
+    }
 
     -- 初始化空网格
     self:_initGrid()
@@ -100,6 +132,10 @@ function Bag:place(weapon, row, col)
     weapon._bagCol = col
     self._weapons[weapon.instanceId] = weapon
 
+    -- Phase 7：重新计算相邻增益和羁绊
+    getAdjacency().recalculate(self)
+    getSynergy().recalculate(self)
+
     return true
 end
 
@@ -111,6 +147,10 @@ function Bag:remove(weapon)
     self._weapons[weapon.instanceId] = nil
     weapon._bagRow = nil
     weapon._bagCol = nil
+
+    -- Phase 7：重新计算相邻增益和羁绊
+    getAdjacency().recalculate(self)
+    getSynergy().recalculate(self)
 end
 
 -- 清除网格中武器的占格记录

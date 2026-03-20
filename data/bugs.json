@@ -1,1 +1,39 @@
-[]
+[
+  {"id":1,"desc":"我将炮和霰弹枪进行融合，按下回车之后没有响应","time":"2026-03-21 00:31:01","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":5,"hp":120,"elapsed":50.5,"enemies":16,"logSnapshot":"logs/bug_1_20260321_003101.log"}}
+,
+  {"id":2,"desc":"在升级获取武器时，不应该刷新出来已经融合后的武器","time":"2026-03-21 00:33:24","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":164,"elapsed":102.6,"enemies":81,"logSnapshot":"logs/bug_2_20260321_003324.log"}}
+,
+  {"id":3,"desc":"融合时，如果因为背包空间不足导致的融合失败，应该要有提示，而不是直接关闭弹窗","time":"2026-03-21 00:34:44","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":164,"elapsed":110.6,"enemies":59,"logSnapshot":"logs/bug_3_20260321_003444.log"}}
+,
+  {"id":4,"desc":"武器融合预览时，要提示融合后的武器尺寸","time":"2026-03-21 00:35:08","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":164,"elapsed":110.6,"enemies":59,"logSnapshot":"logs/bug_4_20260321_003508.log"}}
+,
+  {"id":5,"desc":"我在获取武器的界面将武器融合之后，会导致无法退出","time":"2026-03-21 00:44:37","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":170,"elapsed":105.8,"enemies":74,"logSnapshot":"logs/bug_5_20260321_004437.log"}}
+,
+  {"id":6,"desc":"羁绊加成的布局和当前羁绊效果的布局重叠了","time":"2026-03-21 00:58:49","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":4,"hp":130,"elapsed":49.9,"enemies":11,"logSnapshot":"logs/bug_6_20260321_005849.log"}}
+,
+  {"id":7,"desc":"当前加成四个字前面有一个乱码符号，其他地方也存在这种情况，检查一下","time":"2026-03-21 00:59:44","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":4,"hp":130,"elapsed":49.9,"enemies":11,"logSnapshot":"logs/bug_7_20260321_005944.log"}}
+,
+  {"id":8,"desc":"羁绊加成与武器羁绊的布局重叠了，修正一下","time":"2026-03-21 01:00:14","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":4,"hp":130,"elapsed":49.9,"enemies":11,"logSnapshot":"logs/bug_8_20260321_010014.log"}}
+,
+  {"id":9,"desc":"融合武器的被动效果也要展示在融合的预览界面上","time":"2026-03-21 01:03:35","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":9,"hp":180,"elapsed":90.0,"enemies":15,"logSnapshot":"logs/bug_9_20260321_010335.log"}}
+,
+  {"id":10,"desc":"背包面板需要可以按tab键退出","time":"2026-03-21 01:11:57","priority":2,"status":"fixed","fixedTime":"2026-03-21","log":{"level":3,"hp":120,"elapsed":17.3,"enemies":2,"logSnapshot":"logs/bug_10_20260321_011157.log"}}
+,
+  {"id":11,"desc":"需求list模块没有实现，按f11没有反应","time":"2026-03-21 01:12:17","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":3,"hp":120,"elapsed":19.2,"enemies":2,"logSnapshot":"logs/bug_11_20260321_011217.log"}}
+,
+  {"id":12,"desc":"武器详情的武器羁绊描述里面，要显示这把武器属于哪个羁绊，以及这个羁绊需要哪些武器，已拥有的武器高亮，没有的武器显示灰色","time":"2026-03-21 01:15:31","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":170,"elapsed":62.2,"enemies":5,"logSnapshot":"logs/bug_12_20260321_011531.log"}}
+,
+  {"id":13,"desc":"武器融合界面的标题上左右各有一个乱码","time":"2026-03-21 01:19:02","priority":2,"status":"fixed","fixedTime":"2026-03-21","log":{"level":13,"hp":220,"elapsed":134.4,"enemies":1,"logSnapshot":"logs/bug_13_20260321_011902.log"}}
+,
+  {"id":14,"desc":"武器详情页，不要常驻显示所有武器羁绊，只显示和这个武器关联的羁绊","time":"2026-03-21 01:53:29","priority":3,"log":{"level":1,"hp":100,"elapsed":5.1,"enemies":2,"logSnapshot":"logs/bug_14_20260321_015329.log"}}
+,
+  {"id":15,"desc":"武器羁绊要显示他的效果是什么","time":"2026-03-21 01:56:22","priority":3,"log":{"level":7,"hp":160,"elapsed":55.1,"enemies":11,"logSnapshot":"logs/bug_15_20260321_015622.log"}}
+,
+  {"id":16,"desc":"武器融合界面，要显示新武器的标签","time":"2026-03-21 01:57:51","priority":3,"log":{"level":11,"hp":200,"elapsed":88.9,"enemies":14,"logSnapshot":"logs/bug_16_20260321_015751.log"}}
+,
+  {"id":17,"desc":"武器详情的武器标签，显示的是当前武器自己都有哪些标签，而不是标签总数，也不需要数量显示","time":"2026-03-21 01:59:05","priority":3,"log":{"level":11,"hp":200,"elapsed":88.9,"enemies":14,"logSnapshot":"logs/bug_17_20260321_015905.log"}}
+,
+  {"id":18,"desc":"背包界面的武器羁绊，合并到武器详情里面去，不要单独显示在背包界面上，且只显示和这个武器相关的羁绊","time":"2026-03-21 02:13:50","priority":3,"log":{"level":1,"hp":100,"elapsed":3.4,"enemies":2,"logSnapshot":"logs/bug_18_20260321_021350.log"}}
+,
+  {"id":19,"desc":"融合界面双持手枪显示的尺寸是2*2，但实际是1*2","time":"2026-03-21 02:22:39","priority":2,"log":{"level":8,"hp":170,"elapsed":69.6,"enemies":5,"logSnapshot":"logs/bug_19_20260321_022239.log"}}
+]

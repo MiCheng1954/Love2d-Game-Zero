@@ -13,7 +13,7 @@ local Game         = require("src.states.game")
 local Upgrade      = require("src.states.upgrade")
 local Gameover     = require("src.states.gameover")
 local Console      = require("src.states.console")
-local BugReport    = require("src.states.bugReport")  -- [可剔除] 注释此行+register+F12分支即可移除
+local DevReport    = require("src.states.devReport")   -- [可剔除] 注释此行+register+F12分支即可移除
 local BagUI        = require("src.states.bagUI")
 
 -- 游戏初始化，Love2D 启动后调用一次
@@ -37,8 +37,8 @@ function love.load()
     StateManager.register("upgrade",   Upgrade)
     StateManager.register("gameover",  Gameover)
     StateManager.register("console",   Console)
-    StateManager.register("bugReport", BugReport)  -- [可剔除] 注释此行+require+F12分支即可移除
-    StateManager.register("bagUI",     BagUI)
+    StateManager.register("devReport",      DevReport)        -- [可剔除] 注释此行+require+F12分支即可移除
+    StateManager.register("bagUI",          BagUI)
 
     -- 设置默认字体抗锯齿过滤
     love.graphics.setDefaultFilter("nearest", "nearest")
@@ -81,14 +81,14 @@ function love.keypressed(key, scancode, isrepeat)
         end
     end
 
-    -- F12 键：呼出 Bug 反馈面板（任意状态均可，[可剔除] 注释此 elseif 块即可移除）
+    -- F12 键：呼出开发反馈面板（Bug / 需求统一入口，[可剔除] 注释此块即可移除）
     if key == "f12" then
         local Console = require("src.states.console")
         if curState ~= Console then
-            local BugReport = require("src.states.bugReport")
-            if curState ~= BugReport then
+            local DevReport = require("src.states.devReport")
+            if curState ~= DevReport then
                 local Game = require("src.states.game")
-                StateManager.push("bugReport", {
+                StateManager.push("devReport", {
                     player  = Game._getPlayer(),
                     spawner = Game._getSpawner(),
                     enemies = Game._getEnemies(),

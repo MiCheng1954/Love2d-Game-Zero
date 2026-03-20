@@ -36,13 +36,14 @@ local UpgradeConfig = {
                 end
 
                 -- 候选池：优先未拥有；全有时所有武器都候选
+                -- Bug#2：过滤掉融合结果武器（isFused=true）
                 local pool = {}
-                for id, _ in pairs(WeaponConfig) do
-                    if not owned[id] then table.insert(pool, id) end
+                for id, cfg in pairs(WeaponConfig) do
+                    if not cfg.isFused and not owned[id] then table.insert(pool, id) end
                 end
                 if #pool == 0 then
-                    for id, _ in pairs(WeaponConfig) do
-                        table.insert(pool, id)
+                    for id, cfg in pairs(WeaponConfig) do
+                        if not cfg.isFused then table.insert(pool, id) end
                     end
                 end
 

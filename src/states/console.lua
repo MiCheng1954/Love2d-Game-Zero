@@ -103,13 +103,12 @@ function Console:keypressed(key)
         local StateManager = require("src.states.stateManager")
         StateManager.pop()
     elseif key == "backspace" then
-        -- 删除最后一个字符（需处理 UTF-8 多字节）
-        self._input = self._input:sub(1, -2)
-        -- 若末尾是 UTF-8 续字节，继续删除直到合法边界
+        -- LuaJIT 无 utf8 库，手动字节操作删除末尾一个 UTF-8 字符
+        -- UTF-8：续字节范围 0x80~0xBF，领头字节/ASCII 其他情况
         while #self._input > 0 do
             local b = self._input:byte(-1)
-            if b < 0x80 or b >= 0xC0 then break end
             self._input = self._input:sub(1, -2)
+            if b < 0x80 or b >= 0xC0 then break end  -- 删到 ASCII 或领头字节为止
         end
     elseif key == "return" or key == "kpenter" then
         local cmd = self._input:match("^%s*(.-)%s*$")  -- trim

@@ -46,6 +46,10 @@ function Weapon.new(configId)
     self._shape      = self:_copyShape(cfg.shape)  -- 当前旋转后的形状
     self._attackTimer = 0                           -- 独立攻击冷却计时器
 
+    -- Phase 7：相邻增益 & 羁绊加成（由 Adjacency/Synergy 系统写入，每次背包变化后重算）
+    self._adjBonus     = { damage = 0, attackSpeed = 0, range = 0, bulletSpeed = 0 }
+    self._synergyBonus = { damage = 0, attackSpeed = 0, range = 0 }
+
     return self
 end
 
@@ -131,11 +135,39 @@ end
 -- 战斗
 -- ============================================================
 
--- 获取有效伤害（武器伤害 + 玩家基础攻击加成）
+-- 获取有效伤害（武器伤害 + 玩家基础攻击加成 + 相邻增益 + 羁绊加成）
 -- @param playerAttack: 玩家基础攻击力
 -- @return 实际伤害值
 function Weapon:getEffectiveDamage(playerAttack)
-    return self.damage + (playerAttack or 0)
+    return self.damage
+        + (playerAttack or 0)
+        + self._adjBonus.damage
+        + self._synergyBonus.damage
+end
+
+-- 获取有效射速（attackSpeed + 相邻增益 + 羁绊加成）
+-- @return 有效每秒发射次数
+function Weapon:getEffectiveAttackSpeed()
+    return self.attackSpeed
+        + self._adjBonus.attackSpeed
+        + self._synergyBonus.attackSpeed
+end
+
+-- 获取有效射程（range + 相邻增益 + 羁绊加成）
+-- @return 有效索敌范围（像素）
+function Weapon:getEffectiveRange()
+    return self.range
+        + self._adjBonus.range
+        + self._synergyBonus.range
+end
+
+-- 获取有效弹速（bulletSpeed + 相邻增益 + 额外加成）
+-- @param extraBulletSpeed: 额外弹速加成（可选，来自 playerSynergyBonus.bulletSpeed）
+-- @return 有效子弹飞行速度（像素/秒）
+function Weapon:getEffectiveBulletSpeed(extraBulletSpeed)
+    return self.bulletSpeed
+        + self._adjBonus.bulletSpeed
+        + (extraBulletSpeed or 0)
 end
 
 -- 每帧推进攻击计时器，返回本帧应发射的次数（通常 0 或 1）
@@ -143,7 +175,7 @@ end
 -- @return 发射次数（integer）
 function Weapon:tickAttack(dt)
     self._attackTimer = self._attackTimer + dt
-    local interval = 1.0 / self.attackSpeed
+    local interval = 1.0 / self:getEffectiveAttackSpeed()
     local shots = 0
     while self._attackTimer >= interval do
         self._attackTimer = self._attackTimer - interval

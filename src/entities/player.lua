@@ -24,7 +24,7 @@ function Player.new(x, y)
     local self = setmetatable(Entity.new(x, y), Player)
 
     -- 覆盖基类属性
-    self.speed        = 180   -- 玩家移动速度（像素/秒）
+    self.speed        = 300   -- 玩家移动速度（像素/秒）
     self.maxHp        = 100   -- 玩家最大生命值
     self.hp           = 100   -- 玩家当前生命值
     self.width        = PLAYER_RADIUS * 2   -- 碰撞体宽度
@@ -45,24 +45,35 @@ function Player.new(x, y)
     Weapon.resetIdCounter()
     self._bag = Bag.new(2, 2)
 
+    -- 需求2：覆盖拾取半径和经验倍率
+    self.pickupRadius = 1000
+    self.expBonus     = 2.0
+
+    -- 需求1：默认装备一把手枪放到背包 (1,1)
+    local pistol = Weapon.new("pistol")
+    self._bag:place(pistol, 1, 1)
+
     return self
 end
 
 -- 每帧更新玩家逻辑
 -- @param dt: 距上一帧的时间间隔（秒）
-function Player:update(dt)
-    self:_handleMovement(dt)
+-- @param extraSpeed: 额外移动速度加成（来自羁绊，可选）
+function Player:update(dt, extraSpeed)
+    self:_handleMovement(dt, extraSpeed)
 end
 
 -- 处理玩家移动逻辑
 -- @param dt: 距上一帧的时间间隔（秒）
-function Player:_handleMovement(dt)
+-- @param extraSpeed: 额外移动速度加成（可选）
+function Player:_handleMovement(dt, extraSpeed)
     -- 从输入系统获取方向
     self._dx, self._dy = Input.getMoveDirection()
 
-    -- 更新位置
-    self.x = self.x + self._dx * self.speed * dt
-    self.y = self.y + self._dy * self.speed * dt
+    -- 更新位置（基础速度 + 羁绊加成）
+    local effectiveSpeed = self.speed + (extraSpeed or 0)
+    self.x = self.x + self._dx * effectiveSpeed * dt
+    self.y = self.y + self._dy * effectiveSpeed * dt
 end
 
 -- 将玩家绘制到屏幕上

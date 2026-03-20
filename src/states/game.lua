@@ -120,8 +120,34 @@ function Game:update(dt)
 
     Timer.update(dt)
 
-    -- 更新玩家
-    _player:update(dt)
+    -- Phase 7.2：读取 playerSynergyBonus，应用到玩家全局属性
+    local bag = _player:getBag()
+    local psb = bag._playerSynergyBonus or {}
+    -- maxHP 加成：检测变化并同步当前 HP（避免每帧重复叠加，用 _psbMaxHP 缓存上次值）
+    local psbMaxHP = psb.maxHP or 0
+    if psbMaxHP ~= (_player._psbMaxHPLast or 0) then
+        local delta = psbMaxHP - (_player._psbMaxHPLast or 0)
+        _player.maxHp = _player.maxHp + delta
+        _player.hp    = math.min(_player.hp + math.max(0, delta), _player.maxHp)
+        _player._psbMaxHPLast = psbMaxHP
+    end
+    -- pickupRange 加成：同样用缓存避免重复叠加
+    local psbPickup = psb.pickupRange or 0
+    if psbPickup ~= (_player._psbPickupLast or 0) then
+        local delta = psbPickup - (_player._psbPickupLast or 0)
+        _player.pickupRadius = _player.pickupRadius + delta
+        _player._psbPickupLast = psbPickup
+    end
+    -- expMult 加成：同样用缓存（+25 = +0.25）
+    local psbExpMult = (psb.expMult or 0) / 100
+    if psbExpMult ~= (_player._psbExpMultLast or 0) then
+        local delta = psbExpMult - (_player._psbExpMultLast or 0)
+        _player.expBonus = _player.expBonus + delta
+        _player._psbExpMultLast = psbExpMult
+    end
+
+    -- 更新玩家（传入 psb.speed 作为额外速度加成）
+    _player:update(dt, psb.speed or 0)
 
     -- 更新升级提示倒计时
     if _levelUpNotice.active then
@@ -254,24 +280,31 @@ end
 function Game._updateAutoAttack(dt)
     local bag     = _player:getBag()
     local weapons = bag:getAllWeapons()
+    local psb     = bag._playerSynergyBonus or {}  -- Phase 7.2：玩家全局羁绊加成
+
+    -- Phase 7.2：暴击率与暴击倍率加成（critChance 为百分比，需转换为小数）
+    local effectiveCritRate   = _player.critRate   + (psb.critChance or 0) / 100
+    local effectiveCritDamage = _player.critDamage + (psb.critMult   or 0) / 100
 
     if #weapons > 0 then
         -- 每把武器独立计时、独立索敌、独立发射
         for _, weapon in ipairs(weapons) do
             local shots = weapon:tickAttack(dt)
             if shots > 0 then
-                local target = Game._findNearestEnemyInRange(weapon.range)
+                local target = Game._findNearestEnemyInRange(weapon:getEffectiveRange())
                 if target then
                     for _ = 1, shots do
                         local dx, dy = MathUtils.normalize(
                             target.x - _player.x,
                             target.y - _player.y)
+                        -- Phase 7.2：伤害加上全局攻击加成；弹速加上全局弹速加成
                         local proj = Projectile.new(
                             _player.x, _player.y,
                             dx, dy,
-                            weapon:getEffectiveDamage(_player.attack),
-                            weapon.bulletSpeed)
-                        proj._critRate = _player.critRate
+                            weapon:getEffectiveDamage(_player.attack + (psb.damage or 0)),
+                            weapon:getEffectiveBulletSpeed(psb.bulletSpeed or 0))
+                        proj._critRate   = effectiveCritRate
+                        proj._critDamage = effectiveCritDamage
                         table.insert(_projectiles, proj)
                     end
                 end
@@ -292,7 +325,8 @@ function Game._updateAutoAttack(dt)
                     dx, dy,
                     FALLBACK_ATTACK_DAMAGE,
                     FALLBACK_ATTACK_SPEED)
-                proj._critRate = _player.critRate
+                proj._critRate   = effectiveCritRate
+                proj._critDamage = effectiveCritDamage
                 table.insert(_projectiles, proj)
             end
         end
@@ -408,6 +442,23 @@ function Game._drawHUD()
     love.graphics.print(T("hud.souls") .. ": " .. _player:getSouls(), 20, 76)
     love.graphics.print(T("hud.enemies") .. ": " .. #_enemies, 20, 94)
 
+    -- 需求4：右上角显示当前激活的羁绊
+    local activeSynergies = _player:getBag()._activeSynergies or {}
+    if #activeSynergies > 0 then
+        Font.set(13)
+        local sx = 1280 - 20
+        local sy = 20
+        local lh = 20
+        love.graphics.setColor(1.0, 0.85, 0.3)
+        love.graphics.printf("[羁绊]", sx - 200, sy, 200, "right")
+        sy = sy + lh
+        for _, syn in ipairs(activeSynergies) do
+            love.graphics.setColor(0.4, 1.0, 0.7)
+            love.graphics.printf("+ " .. T(syn.nameKey), sx - 200, sy, 200, "right")
+            sy = sy + lh
+        end
+    end
+
     -- 操作提示
     love.graphics.setColor(0.5, 0.5, 0.5)
     love.graphics.print(T("hud.hint"), 20, 695)
@@ -464,8 +515,9 @@ function Game._drawDebugPanel()
 
     local bag     = _player:getBag()
     local weapons = bag:getAllWeapons()
-    -- 面板高度根据武器数量动态调整
-    local panelH  = lh * (11 + math.max(1, #weapons)) + 8
+    local synergies = bag._activeSynergies or {}
+    -- 面板高度根据武器数量和激活羁绊数量动态调整
+    local panelH  = lh * (12 + math.max(1, #weapons) + math.max(1, #synergies)) + 8
 
     love.graphics.setColor(0, 0, 0, 0.6)
     love.graphics.rectangle("fill", x - 8, y - 4, 370, panelH)
@@ -497,7 +549,7 @@ function Game._drawDebugPanel()
         "Bag: %dx%d  | Weapons: %d",
         bag.cols, bag.rows, #weapons), x, y + lh * 6)
 
-    -- 每把武器独立一行
+    -- 每把武器独立一行（显示有效属性，含相邻/羁绊加成）
     if #weapons == 0 then
         love.graphics.setColor(0.5, 0.5, 0.5)
         love.graphics.print("  (no weapon - fallback)", x, y + lh * 7)
@@ -505,14 +557,50 @@ function Game._drawDebugPanel()
         for i, w in ipairs(weapons) do
             love.graphics.setColor(w.color[1], w.color[2], w.color[3])
             love.graphics.print(string.format(
-                "  W%d: %-8s Lv%d  spd=%.1f tmr=%.2f",
-                i, w.configId, w.level, w.attackSpeed, w._attackTimer),
+                "  W%d: %-8s Lv%d  spd=%.1f(+%.1f) tmr=%.2f",
+                i, w.configId, w.level,
+                w.attackSpeed, w._adjBonus.attackSpeed + w._synergyBonus.attackSpeed,
+                w._attackTimer),
                 x, y + lh * (6 + i))
         end
     end
 
     local weaponRows = math.max(1, #weapons)
     local baseRow    = 7 + weaponRows
+
+    -- Phase 7.2：显示 Tag 计数行
+    local tagCounts  = bag._tagCounts or {}
+    local tagStr     = ""
+    local SynConfig  = require("config.synergies")
+    for _, entry in ipairs(SynConfig) do
+        local tag = entry.tag
+        local cnt = tagCounts[tag] or 0
+        if cnt > 0 then
+            tagStr = tagStr .. tag .. ":" .. cnt .. " "
+        end
+    end
+
+    love.graphics.setColor(1, 0.75, 0.3)
+    if tagStr == "" then
+        love.graphics.print("  Tag计数: (无)", x, y + lh * baseRow)
+    else
+        love.graphics.print("  Tag计数: " .. tagStr, x, y + lh * baseRow)
+    end
+    baseRow = baseRow + 1
+
+    -- 激活羁绊行
+    love.graphics.setColor(1, 0.85, 0.4)
+    if #synergies == 0 then
+        love.graphics.print("  激活羁绊: (无)", x, y + lh * baseRow)
+    else
+        love.graphics.print("  激活羁绊:", x, y + lh * baseRow)
+        for i, syn in ipairs(synergies) do
+            love.graphics.setColor(0.4, 1.0, 0.7)
+            love.graphics.print("    + " .. T(syn.nameKey), x, y + lh * (baseRow + i))
+        end
+    end
+    local synergyRows = math.max(1, #synergies + 1)
+    baseRow = baseRow + synergyRows
 
     love.graphics.setColor(1, 1, 0.4)
     love.graphics.print(string.format(

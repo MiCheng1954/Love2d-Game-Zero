@@ -2,6 +2,7 @@
     config/i18n/zh.lua
     中文文本配置表，包含游戏中所有中文字符串的 key-value 映射
     Phase 5.1：i18n 多语言支持基础
+    Phase 7.2：新增 6 把武器文本 + Tag 羁绊系统文本
 ]]
 
 return {
@@ -83,6 +84,12 @@ return {
     ["bag.hint.place"]         = "方向键 移动位置  |  R 旋转  |  Enter 放置  |  ESC 丢弃",
     ["bag.hint.select"]        = "方向键 移动光标  |  Enter 选择  |  ESC 取消",
     ["bag.hint.select_upgrade"]= "选择一把武器进行强化  |  Enter 确认  |  ESC 取消",
+    ["bag.adj_bonus"]          = "◆ 相邻加成",
+    ["bag.synergy_bonus"]      = "◆ 羁绊加成",
+    ["bag.hint.fusion"]        = "Enter 确认融合  |  ESC 取消",
+    ["bag.fusion.title"]       = "=== 武器融合 ===",
+    ["bag.fusion.warning"]     = "※ 融合将消耗【%s】和【%s】，此操作不可撤销",
+    ["bag.fusion.no_space"]    = "⚠  背包空间不足，无法放置融合结果  |  ESC 取消",
 
     -- 武器名称
     ["weapon.pistol.name"]  = "手枪",
@@ -99,4 +106,89 @@ return {
     ["weapon.sniper.desc"]  = "超远射程，极高单发伤害，射速极慢。",
     ["weapon.cannon.desc"]  = "强力炮击，伤害高但射速慢。",
     ["weapon.laser.desc"]   = "高射速中等伤害，持续压制。",
+
+    -- 武器被动效果描述（需求3）
+    ["weapon.pistol.passive"]      = "精准训练：使相邻武器射速 +0.15/s",
+    ["weapon.shotgun.passive"]     = "制止力：使相邻武器伤害 +8",
+    ["weapon.smg.passive"]         = "速射光环：使相邻武器射速 +0.4/s",
+    ["weapon.sniper.passive"]      = "远程感知：使相邻武器射程 +60px",
+    ["weapon.cannon.passive"]      = "重型弹药：使相邻武器伤害 +12",
+    ["weapon.laser.passive"]       = "精准能量：使相邻武器射速 +0.2/s、射程 +20px",
+    ["weapon.dual_pistol.passive"] = "双枪节奏：使相邻武器射速 +0.5/s",
+    ["weapon.siege_cannon.passive"]= "重甲威压：使相邻武器伤害 +20",
+    ["weapon.railgun.passive"]     = "能量场：使相邻武器射程 +80px、射速 +0.1/s",
+
+    -- Phase 7.2：新增 6 把武器被动效果描述
+    ["weapon.burst_pistol.passive"]      = "速射干扰：使相邻武器射速 +0.3/s",
+    ["weapon.grenade_launcher.passive"]  = "爆炸波及：使相邻武器伤害 +10",
+    ["weapon.double_barrel.passive"]     = "双管压制：使相邻武器伤害 +9",
+    ["weapon.gatling.passive"]           = "弹幕掩护：使相邻武器射速 +0.5/s",
+    ["weapon.plasma_pistol.passive"]     = "等离子场：使相邻武器射速 +0.2/s、射程 +25px",
+    ["weapon.rail_rifle.passive"]        = "磁轨穿透：使相邻武器射程 +50px",
+
+    -- Phase 7.1：融合结果武器名称与描述
+    ["weapon.dual_pistol.name"]   = "双持手枪",
+    ["weapon.dual_pistol.desc"]   = "手枪与冲锋枪融合而成，射速极快且弹如雨下。",
+    ["weapon.siege_cannon.name"]  = "攻城炮",
+    ["weapon.siege_cannon.desc"]  = "散弹枪与炮融合而成，每发炮弹伤害惊人。",
+    ["weapon.railgun.name"]       = "轨道炮",
+    ["weapon.railgun.desc"]       = "狙击枪与激光枪融合而成，超远射程高频打击。",
+
+    -- Phase 7.2：新增 6 把基础武器名称与描述
+    ["weapon.burst_pistol.name"]      = "爆发手枪",
+    ["weapon.burst_pistol.desc"]      = "改良型手枪，射速更快，兼具精准与速度。",
+    ["weapon.grenade_launcher.name"]  = "榴弹发射器",
+    ["weapon.grenade_launcher.desc"]  = "发射爆炸榴弹，单发伤害高，射速较慢。",
+    ["weapon.double_barrel.name"]     = "双管猎枪",
+    ["weapon.double_barrel.desc"]     = "双管设计提供更高伤害，极近距离效果惊人。",
+    ["weapon.gatling.name"]           = "加特林",
+    ["weapon.gatling.desc"]           = "多管旋转机枪，射速恐怖，占用 2×2 空间。",
+    ["weapon.plasma_pistol.name"]     = "等离子手枪",
+    ["weapon.plasma_pistol.desc"]     = "发射等离子弹，融合科技与爆炸能量。",
+    ["weapon.rail_rifle.name"]        = "磁轨步枪",
+    ["weapon.rail_rifle.desc"]        = "磁力加速步枪，射程极远，弹速极高。",
+
+    -- Phase 7.2：Tag 显示名（用于背包羁绊进度条）
+    ["tag.速射"] = "速射",
+    ["tag.精准"] = "精准",
+    ["tag.重型"] = "重型",
+    ["tag.爆炸"] = "爆炸",
+    ["tag.科技"] = "科技",
+    ["tag.游击"] = "游击",
+
+    -- Phase 7.2：Tag 羁绊 — 速射
+    ["syn.速射.t2.name"] = "急速光环",
+    ["syn.速射.t2.desc"] = "速射武器 x2：移动速度 +25",
+    ["syn.速射.t3.name"] = "弹雨狂潮",
+    ["syn.速射.t3.desc"] = "速射武器 x3：移动速度 +50，攻击力 +8",
+
+    -- Phase 7.2：Tag 羁绊 — 精准
+    ["syn.精准.t2.name"] = "精准感知",
+    ["syn.精准.t2.desc"] = "精准武器 x2：暴击率 +8%",
+    ["syn.精准.t3.name"] = "致命精度",
+    ["syn.精准.t3.desc"] = "精准武器 x3：暴击率 +15%，暴击伤害 +40%",
+
+    -- Phase 7.2：Tag 羁绊 — 重型
+    ["syn.重型.t2.name"] = "重装压制",
+    ["syn.重型.t2.desc"] = "重型武器 x2：攻击力 +15",
+    ["syn.重型.t3.name"] = "铁甲破阵",
+    ["syn.重型.t3.desc"] = "重型武器 x3：攻击力 +30，最大生命 +30",
+
+    -- Phase 7.2：Tag 羁绊 — 爆炸
+    ["syn.爆炸.t2.name"] = "弹道强化",
+    ["syn.爆炸.t2.desc"] = "爆炸武器 x2：所有子弹飞行速度 +80",
+    ["syn.爆炸.t3.name"] = "爆破先锋",
+    ["syn.爆炸.t3.desc"] = "爆炸武器 x3：子弹速度 +160，攻击力 +10",
+
+    -- Phase 7.2：Tag 羁绊 — 科技
+    ["syn.科技.t2.name"] = "能量感应",
+    ["syn.科技.t2.desc"] = "科技武器 x2：拾取范围 +60",
+    ["syn.科技.t3.name"] = "科技领域",
+    ["syn.科技.t3.desc"] = "科技武器 x3：拾取范围 +120，经验获取 +25%",
+
+    -- Phase 7.2：Tag 羁绊 — 游击
+    ["syn.游击.t2.name"] = "战场直觉",
+    ["syn.游击.t2.desc"] = "游击武器 x2：最大生命 +25",
+    ["syn.游击.t3.name"] = "游击突袭",
+    ["syn.游击.t3.desc"] = "游击武器 x3：最大生命 +50，移动速度 +20",
 }
