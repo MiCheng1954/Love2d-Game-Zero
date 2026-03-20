@@ -6,6 +6,8 @@
 
 local Gameover = {}
 
+local Font = require("src.utils.font")
+
 -- 进入结算状态时调用
 -- @param data: 传入的结算数据（如本局时长、击杀数等）
 function Gameover:enter(data)
@@ -26,10 +28,15 @@ end
 function Gameover:draw()
     love.graphics.setBackgroundColor(0.05, 0.05, 0.08)
 
+    Font.set(48)
     love.graphics.setColor(1, 0.3, 0.3)
-    love.graphics.printf("GAME OVER", 0, 300, 1280, "center")
+    love.graphics.printf(T("gameover.title"), 0, 300, 1280, "center")
+
+    Font.set(18)
     love.graphics.setColor(0.7, 0.7, 0.7)
-    love.graphics.printf("按 Enter 返回菜单 (Phase 10 占位)", 0, 370, 1280, "center")
+    love.graphics.printf(T("gameover.hint"), 0, 370, 1280, "center")
+
+    Font.reset()
 end
 
 -- 键盘按下事件

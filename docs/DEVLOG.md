@@ -142,3 +142,59 @@ zero/
 - `src/entities/player.lua`：移除 gainExp 内的升级逻辑，升级统一交由 Experience 系统处理
 - `src/states/game.lua`：接入掉落物更新/绘制，升级时显示屏幕中央金色浮窗（含淡出效果）
 - **修复**：player.lua 与 experience.lua 升级逻辑冲突导致升级回调不触发
+
+## [2026-03-20 18:00:00] Phase 5.1 — 字体/i18n/控制台/Bug反馈
+
+**做了什么：** 完善开发基础设施，解决中文乱码，新增开发者工具
+
+### 字体与 i18n 系统
+- `assets/fonts/wqy-microhei.ttc`：新增文泉驿微米黑字体（~5MB），修复游戏内所有中文乱码显示
+- `src/utils/font.lua`：字体管理器，`Font.get(size)` 懒加载缓存，`Font.set(size)` 快捷设置，`Font.reset()` 恢复默认
+- `src/utils/i18n.lua`：多语言访问器，`I18n.load(lang)` 加载语言表，`I18n.get(key, ...)` 支持 string.format 参数
+- `config/i18n/zh.lua`：中文文本配置表，覆盖 HUD/升级界面/控制台/Bug反馈/菜单/结算/大类/子选项等所有文本
+- `main.lua`：启动时注入 `_G.T = I18n.get`，全局可用 `T("key")` 访问文本
+- `config/upgrades.lua`：大类和子选项的 `label/desc` 字段改为 `labelKey/descKey`（i18n key），由渲染层调 T() 翻译
+- `src/states/game.lua`、`upgrade.lua`、`menu.lua`、`gameover.lua`：所有硬编码中文文本替换为 `T("key")`，菜单/结算使用大字体
+
+### 开发者控制台（` 键）
+- `src/states/console.lua`：`StateManager.push("console")` 覆盖层，不暂停游戏
+- 支持 11 条指令：`level/levelup/hp/maxhp/souls/speed/attack/exp/kill/clear/help`
+- 右下角半透明绿色面板（620×320），历史输出行 + 光标闪烁输入行
+- `src/states/game.lua`：新增 `_getPlayer()/_getEnemies()/_getSpawner()/_triggerLevelUp()` 外部访问器
+- `src/states/stateManager.lua`：新增 `textinput(text)` 转发方法
+- `main.lua`：` 键在游戏状态下 push 控制台，新增 `love.textinput` 回调转发
+
+### Bug 反馈面板（F12 键）
+- `src/states/bugReport.lua`：`StateManager.push("bugReport")` 覆盖层，两阶段输入（描述 → 优先级1/2/3）
+- Bug 数据含游戏快照（等级/HP/存活时间/敌人数）+ 当前运行日志快照路径索引
+- 写入 `项目目录/data/bugs.json`，日志快照写入 `data/logs/bug_<id>_<时间戳>.log`
+- **可剔除**：注释 `main.lua` 中的 `require BugReport`、`register("bugReport"...)`、`F12 分支` 三处即可完全移除，不影响游戏逻辑
+
+### 运行日志系统
+- `src/utils/log.lua`：新增运行日志模块，写入 `data/game.log`
+- 支持 `Log.info/warn/error/event()` 四个级别
+- `Log.snapshotForBug(id)`：提交 Bug 时自动将当前日志快照写入 `data/logs/`
+- `main.lua`：启动时 `Log.init()`，退出时 `love.quit()` 钩子关闭句柄
+
+### 需求跟踪
+- 新建 `data/features.md`：功能需求 backlog，Claude 自动按优先级实现
+
+## [2026-03-20 19:20:00] Phase 5.1 后续修复
+
+**做了什么：** 修复联调阶段发现的 3 个 Bug
+
+### Bug #1 — BugReport 面板崩溃（UTF-8 Invalid）
+- **现象**：按 F12 打开 Bug 反馈面板后游戏立即崩溃
+- **原因**：`love.graphics.printf()` 在渲染用户输入时收到非法 UTF-8 字符串。退格键处理逻辑用 `s:sub(1, -2)` 每次只删1字节，中文汉字占3字节，删到一半会留下孤立的多字节起始字节
+- **修复**：新增 `utf8Backspace(s)` 函数，从字符串末尾向前扫描找到完整字符的起始字节（`b < 0x80 or b >= 0xC0`），一次性截掉整个 Unicode 字符
+
+### Bug #2 — BugReport 存储路径调整
+- **原需求**：Bug 记录写入 `%AppData%/LOVE/Zero/bugs.json`（Love2D 沙箱目录）
+- **调整为**：写入项目目录 `data/bugs.json`，日志快照写入 `data/logs/`，便于开发时直接查阅和 Git 管理
+
+### Bug #3 — 控制台 ESC 键穿透（状态切换残留）
+- **现象**：在控制台按 ESC 关闭后，游戏立即退出到主菜单
+- **原因**：`Input.isPressed("cancel")` 底层调用 `love.keyboard.isDown()` 轮询物理键盘状态。控制台 `pop()` 回到 game 状态后的第一帧，ESC 键物理上仍处于按下状态，game 的 `update()` 在同一帧内轮询到 cancel=true，误触发返回菜单
+- **修复**：将 game.lua 中 ESC→返回菜单 的处理从 `update()` 的轮询逻辑移至 `keypressed()` 事件回调。`keypressed` 是 Love2D 的一次性事件，只在新按下瞬间触发，不受跨状态按键残留影响
+- **经验**：覆盖层（push/pop）场景下，跨状态的"确认/取消"操作应统一走 `keypressed` 事件，而非 Input 系统的轮询；轮询适合连续输入（移动、攻击），不适合单次触发的状态切换
+

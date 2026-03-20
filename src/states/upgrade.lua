@@ -6,6 +6,7 @@
 
 local UpgradeConfig = require("config.upgrades")
 local Input         = require("src.systems.input")
+local Font          = require("src.utils.font")
 
 local Upgrade = {}
 
@@ -126,22 +127,26 @@ end
 
 -- 每帧绘制升级界面
 function Upgrade:draw()
+    Font.set(16)
+
     -- 半透明遮罩
     love.graphics.setColor(0, 0, 0, 0.75)
     love.graphics.rectangle("fill", 0, 0, 1280, 720)
 
     -- 标题
     love.graphics.setColor(1, 0.85, 0.1)
-    love.graphics.printf("★  LEVEL UP  ★", 0, 80, 1280, "center")
+    love.graphics.printf(T("upgrade.title"), 0, 80, 1280, "center")
 
     love.graphics.setColor(0.8, 0.8, 0.8)
-    love.graphics.printf("Lv." .. self._player:getLevel(), 0, 116, 1280, "center")
+    love.graphics.printf(T("hud.level") .. self._player:getLevel(), 0, 116, 1280, "center")
 
     if self._phase == PHASE_CATEGORY then
         self:_drawCategoryPhase()
     elseif self._phase == PHASE_OPTION then
         self:_drawOptionPhase()
     end
+
+    Font.reset()
 end
 
 -- 绘制大类选择界面
@@ -153,7 +158,7 @@ function Upgrade:_drawCategoryPhase()
     local cardX = (1280 - cardW) / 2  -- 卡片居中 X
 
     love.graphics.setColor(0.7, 0.7, 0.7)
-    love.graphics.printf("选择奖励大类", 0, 180, 1280, "center")
+    love.graphics.printf(T("upgrade.cat.label"), 0, 180, 1280, "center")
 
     for i, cat in ipairs(cats) do
         local cy       = baseY + (i - 1) * (cardH + 16)
@@ -181,7 +186,7 @@ function Upgrade:_drawCategoryPhase()
         else
             love.graphics.setColor(0.8, 0.8, 0.8)
         end
-        love.graphics.printf(cat.label, cardX, cy + 28, cardW, "center")
+        love.graphics.printf(T(cat.labelKey), cardX, cy + 28, cardW, "center")
 
         -- 选中箭头
         if selected then
@@ -192,7 +197,7 @@ function Upgrade:_drawCategoryPhase()
 
     -- 操作提示
     love.graphics.setColor(0.5, 0.5, 0.5)
-    love.graphics.printf("↑↓ 移动   Enter 确认", 0, 630, 1280, "center")
+    love.graphics.printf(T("upgrade.cat.hint"), 0, 630, 1280, "center")
 end
 
 -- 绘制子选项选择界面
@@ -212,7 +217,7 @@ function Upgrade:_drawOptionPhase()
 
     -- 大类标题
     love.graphics.setColor(color)
-    love.graphics.printf(cat and cat.label or "", 0, 140, 1280, "center")
+    love.graphics.printf(cat and T(cat.labelKey) or "", 0, 140, 1280, "center")
 
     for i, opt in ipairs(opts) do
         local cy       = baseY + (i - 1) * (cardH + 12)
@@ -240,11 +245,11 @@ function Upgrade:_drawOptionPhase()
         else
             love.graphics.setColor(0.85, 0.85, 0.85)
         end
-        love.graphics.print(opt.label, cardX + 20, cy + 12)
+        love.graphics.print(T(opt.labelKey), cardX + 20, cy + 12)
 
         -- 选项描述
         love.graphics.setColor(0.65, 0.65, 0.65)
-        love.graphics.print(opt.desc, cardX + 20, cy + 36)
+        love.graphics.print(T(opt.descKey), cardX + 20, cy + 36)
 
         -- 选中箭头
         if selected then
@@ -256,13 +261,12 @@ function Upgrade:_drawOptionPhase()
     -- 灵魂刷新提示
     love.graphics.setColor(0.4, 0.7, 1.0)
     love.graphics.printf(
-        "← 消耗 " .. self._refreshCost .. " 灵魂刷新选项" ..
-        "  (当前: " .. self._player:getSouls() .. ")",
+        T("upgrade.refresh", self._refreshCost, self._player:getSouls()),
         0, 620, 1280, "center")
 
     -- 操作提示
     love.graphics.setColor(0.5, 0.5, 0.5)
-    love.graphics.printf("↑↓ 移动   Enter 确认   ESC 返回大类", 0, 648, 1280, "center")
+    love.graphics.printf(T("upgrade.opt.hint"), 0, 648, 1280, "center")
 end
 
 -- 键盘按下事件（Input 系统统一处理，此处留空）

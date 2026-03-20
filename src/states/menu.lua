@@ -6,6 +6,8 @@
 
 local Menu = {}
 
+local Font = require("src.utils.font")
+
 -- 进入主菜单状态时调用
 function Menu:enter()
 end
@@ -24,13 +26,17 @@ function Menu:draw()
     -- 背景色
     love.graphics.setBackgroundColor(0.08, 0.08, 0.12)
 
+    Font.set(48)
     -- 游戏标题
     love.graphics.setColor(1, 1, 1)
-    love.graphics.printf("ZERO", 0, 260, 1280, "center")
+    love.graphics.printf(T("menu.title"), 0, 260, 1280, "center")
 
+    Font.set(20)
     -- 提示文字
     love.graphics.setColor(0.7, 0.7, 0.7)
-    love.graphics.printf("按下 Enter 开始游戏", 0, 360, 1280, "center")
+    love.graphics.printf(T("menu.start"), 0, 360, 1280, "center")
+
+    Font.reset()
 end
 
 -- 键盘按下事件

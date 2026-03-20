@@ -103,4 +103,12 @@ function StateManager.keyreleased(key)
     end
 end
 
+-- 将文字输入事件转发给当前状态（用于控制台、Bug 反馈等文字输入场景）
+-- @param text: 输入的文字字符串
+function StateManager.textinput(text)
+    if _currentState and _currentState.textinput then
+        _currentState:textinput(text)
+    end
+end
+
 return StateManager

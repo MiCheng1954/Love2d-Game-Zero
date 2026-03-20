@@ -1,0 +1,7 @@
+# Love2D 运行产物
+data/game.log
+data/logs/
+
+# 编辑器
+.vscode/
+*.swp

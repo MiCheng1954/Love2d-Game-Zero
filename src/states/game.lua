@@ -6,6 +6,7 @@
 
 local Timer      = require("src.utils.timer")
 local MathUtils  = require("src.utils.math")
+local Font       = require("src.utils.font")
 local Input      = require("src.systems.input")
 local Camera     = require("src.systems.camera")
 local Collision  = require("src.systems.collision")
@@ -160,11 +161,7 @@ function Game:update(dt)
         -- TODO: Phase 6
     end
 
-    -- ESC 返回菜单
-    if Input.isPressed("cancel") then
-        local StateManager = require("src.states.stateManager")
-        StateManager.switch("menu")
-    end
+    -- ESC 返回菜单：移至 keypressed 事件处理，避免控制台/面板关闭时的按键残留穿透
 
     -- 处理待跳转升级界面（必须放在 update 最末尾，防止 exit 破坏帧内状态）
     if _pendingUpgrade then
@@ -298,7 +295,8 @@ function Game._drawHUD()
 
     -- HP 文字
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print("HP " .. _player.hp .. " / " .. _player.maxHp, 24, 22)
+    Font.set(13)
+    love.graphics.print(T("hud.hp") .. " " .. _player.hp .. " / " .. _player.maxHp, 24, 22)
 
     -- 经验条背景
     love.graphics.setColor(0.2, 0.2, 0.2)
@@ -310,13 +308,13 @@ function Game._drawHUD()
 
     -- 等级、灵魂、敌人数、掉落物数
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Lv." .. _player:getLevel(), 20, 58)
-    love.graphics.print("灵魂: " .. _player:getSouls(), 20, 76)
-    love.graphics.print("敌人: " .. #_enemies, 20, 94)
+    love.graphics.print(T("hud.level") .. _player:getLevel(), 20, 58)
+    love.graphics.print(T("hud.souls") .. ": " .. _player:getSouls(), 20, 76)
+    love.graphics.print(T("hud.enemies") .. ": " .. #_enemies, 20, 94)
 
     -- 操作提示
     love.graphics.setColor(0.5, 0.5, 0.5)
-    love.graphics.print("WASD 移动  |  ESC 返回菜单", 20, 695)
+    love.graphics.print(T("hud.hint"), 20, 695)
 
     -- 升级提示浮窗
     if _levelUpNotice.active then
@@ -336,12 +334,12 @@ function Game._drawHUD()
 
         -- 标题
         love.graphics.setColor(1, 0.85, 0.1, alpha)
-        love.graphics.printf("★  LEVEL UP  ★", 490, 292, 300, "center")
+        love.graphics.printf(T("upgrade.title"), 490, 292, 300, "center")
 
         -- 等级文字
         love.graphics.setColor(1, 1, 1, alpha)
         love.graphics.printf(
-            "达到 Lv." .. _levelUpNotice.level,
+            T("upgrade.reached", _levelUpNotice.level),
             490, 316, 300, "center")
     end
 
@@ -359,7 +357,8 @@ function Game._drawDebugPanel()
     love.graphics.rectangle("fill", x - 8, y - 4, 370, 220)
 
     love.graphics.setColor(0.4, 1, 0.4)
-    love.graphics.print("[DEBUG]", x, y)
+    Font.set(13)
+    love.graphics.print(T("debug.title"), x, y)
 
     love.graphics.setColor(1, 1, 1)
     love.graphics.print(string.format(
@@ -391,11 +390,46 @@ function Game._drawDebugPanel()
     love.graphics.setColor(1, 1, 0.4)
     love.graphics.print(string.format(
         "FPS: %d", love.timer.getFPS()), x, y + lh * 9)
+
+    Font.reset()
 end
 
--- 键盘按下事件
+-- 键盘按下事件（keypressed 是一次性事件，不会被跨状态按键残留触发）
 -- @param key: 按下的键名
 function Game:keypressed(key)
+    if key == "escape" then
+        local StateManager = require("src.states.stateManager")
+        StateManager.switch("menu")
+    end
+end
+
+-- ============================================================
+-- 外部访问器（供 main.lua 功能键注入数据给控制台/Bug反馈）
+-- ============================================================
+
+-- 返回当前玩家实例（可能为 nil，如不在游戏状态中）
+function Game._getPlayer()
+    return _player
+end
+
+-- 返回当前敌人列表
+function Game._getEnemies()
+    return _enemies
+end
+
+-- 返回当前生成系统实例
+function Game._getSpawner()
+    return _spawner
+end
+
+-- 触发一次升级界面（供控制台 levelup 指令使用）
+function Game._triggerLevelUp()
+    if _player then
+        _pendingUpgrade = {
+            player   = _player,
+            newLevel = _player:getLevel(),
+        }
+    end
 end
 
 return Game
