@@ -59,3 +59,36 @@ zero/
 - `draw()` 内部区分两种模式：有贴图时使用贴图，无贴图时使用代码绘制作为 fallback
 - 禁止在 `update()` 或其他逻辑函数中混入任何渲染代码
 - 逻辑与表现完全解耦，随时可替换资产而不改动逻辑层
+
+## [2026-03-20 16:16:08] 确定开发阶段规划
+
+**做了什么：** 规划完整的 13 个开发 Phase
+
+- Phase 1  → 项目基础骨架（conf、main、状态机、工具库）
+- Phase 2  → 玩家移动（输入系统、Entity基类、摄像机）
+- Phase 3  → 敌人与战斗（Enemy、生成器、投射物、碰撞、自动攻击）
+- Phase 4  → 掉落与属性（掉落系统、吸附、经验升级、属性成长）
+- Phase 5  → 升级界面（多级奖励选择UI、灵魂刷新）
+- Phase 6  → 武器背包（二维网格、背包UI、相邻增益）
+- Phase 7  → 武器融合与羁绊（融合配方、武器/技能羁绊）
+- Phase 8  → 技能系统（主动/被动、通用技能池、角色专属）
+- Phase 9  → 节奏与Boss（节奏控制器、精英怪、Boss触发）
+- Phase 10 → 死亡与传承（传承系统、复活、结算界面）
+- Phase 11 → HUD与UI（常驻HUD、触发器UI、主菜单）
+- Phase 12 → 场景扩展（场景基类、多场景机制）
+- Phase 13 → 局外系统（后续讨论后开发）
+
+## [2026-03-20 16:19:13] Phase 1 — 项目基础骨架
+
+**做了什么：** 搭建项目目录结构，实现状态机框架与工具库
+
+- 创建完整目录结构（src/states、entities、systems、ui、utils、config、assets、libs）
+- `conf.lua`：窗口配置（1280×720，标题 Zero）
+- `main.lua`：程序入口，注册 Love2D 回调，委托给 StateManager
+- `src/states/stateManager.lua`：状态机管理器，支持注册/切换/事件转发
+- `src/states/menu.lua`：主菜单状态（占位，Phase 11 完善）
+- `src/states/game.lua`：游戏主状态（占位，后续各 Phase 填充）
+- `src/states/upgrade.lua`：升级选择状态（占位，Phase 5 完善）
+- `src/states/gameover.lua`：结算状态（占位，Phase 10 完善）
+- `src/utils/math.lua`：数学工具库（distance/angle/normalize/lerp/clamp）
+- `src/utils/timer.lua`：计时器工具库（after/every/cancel/update/clear）
