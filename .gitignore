@@ -5,3 +5,6 @@ data/logs/
 # 编辑器
 .vscode/
 *.swp
+
+# Claude Code 内部目录
+.claude/

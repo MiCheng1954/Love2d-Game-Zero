@@ -20,15 +20,127 @@ local UpgradeConfig = {
             id       = "weapon_new_basic",
             labelKey = "opt.weapon_new_basic.label",
             descKey  = "opt.weapon_new_basic.desc",
-            -- TODO: Phase 6 接入背包系统后实装
-            apply    = function(player) end,
+            -- apply 由 upgrade.lua 根据 onWeaponDrop 回调调用
+            -- 此处 apply 随机选一把武器并触发回调
+            apply    = function(player, ctx)
+                local WeaponConfig = require("config.weapons")
+                local Weapon       = require("src.entities.weapon")
+                local Log          = require("src.utils.log")
+
+                local bag   = player:getBag()
+
+                -- 收集玩家背包中已有的武器 configId
+                local owned = {}
+                for _, w in ipairs(bag:getAllWeapons()) do
+                    owned[w.configId] = true
+                end
+
+                -- 候选池：优先未拥有；全有时所有武器都候选
+                local pool = {}
+                for id, _ in pairs(WeaponConfig) do
+                    if not owned[id] then table.insert(pool, id) end
+                end
+                if #pool == 0 then
+                    for id, _ in pairs(WeaponConfig) do
+                        table.insert(pool, id)
+                    end
+                end
+
+                -- 从候选池中筛选当前背包放得下的武器
+                local fittable = {}
+                for _, id in ipairs(pool) do
+                    local w = Weapon.new(id)
+                    if bag:hasSpace(w) then
+                        table.insert(fittable, id)
+                    end
+                end
+
+                -- 若背包全放不下，先扩展一次再筛
+                if #fittable == 0 then
+                    bag:expand(1, 1)
+                    Log.info("背包已满，自动扩展至 " .. bag.cols .. "x" .. bag.rows)
+                    for _, id in ipairs(pool) do
+                        local w = Weapon.new(id)
+                        if bag:hasSpace(w) then
+                            table.insert(fittable, id)
+                        end
+                    end
+                end
+
+                -- 仍放不下（背包已达上限）则直接结束
+                if #fittable == 0 then
+                    Log.info("背包已达上限，无法获得新武器")
+                    return
+                end
+
+                local pick   = fittable[math.random(#fittable)]
+                local weapon = Weapon.new(pick)
+                Log.info("获得新武器: " .. pick)
+
+                if ctx and ctx.onWeaponDrop then
+                    ctx.onWeaponDrop(weapon, ctx.onDone)
+                    return true
+                end
+            end,
         },
         {
             id       = "weapon_upgrade",
             labelKey = "opt.weapon_upgrade.label",
             descKey  = "opt.weapon_upgrade.desc",
-            -- TODO: Phase 6 接入背包系统后实装
-            apply    = function(player) end,
+            -- 弹出背包 SELECT 模式，让玩家选一把未满级武器升级
+            apply    = function(player, ctx)
+                local Log = require("src.utils.log")
+                local bag = player:getBag()
+                local weapons = bag:getAllWeapons()
+
+                -- 检查是否有可升级武器
+                local hasUpgradeable = false
+                for _, w in ipairs(weapons) do
+                    if w.level < w.maxLevel then
+                        hasUpgradeable = true
+                        break
+                    end
+                end
+
+                if not hasUpgradeable then
+                    Log.info("没有可升级的武器（全部已满级）")
+                    return  -- 直接结束，upgrade.lua 调用 onDone
+                end
+
+                if ctx and ctx.onWeaponDrop then
+                    -- 复用 onWeaponDrop 通道推入 bagUI SELECT 模式
+                    -- 传入特殊标记让 game.lua 的 onWeaponDrop 知道这是 select 场景
+                    ctx.onWeaponDrop("__select__", ctx.onDone, {
+                        filter = function(w) return w.level < w.maxLevel end,
+                        hint   = T("bag.hint.select_upgrade"),
+                        onSelect = function(w)
+                            if w then
+                                w:levelUp()
+                                Log.info("武器升级: " .. w.configId .. " -> Lv" .. w.level)
+                            end
+                        end,
+                    })
+                    return true
+                end
+            end,
+        },
+        {
+            id       = "weapon_bag_expand",
+            labelKey = "opt.weapon_bag_expand.label",
+            descKey  = "opt.weapon_bag_expand.desc",
+            -- 背包已达上限时不显示此选项
+            canShow  = function(player)
+                local Bag = require("src.systems.bag")
+                local maxR, maxC = Bag.getMaxSize()
+                local bag = player:getBag()
+                return bag.rows < maxR or bag.cols < maxC
+            end,
+            apply    = function(player, ctx)
+                local Log = require("src.utils.log")
+                local bag = player:getBag()
+                local r, c = bag:expand(1, 1)
+                Log.info("背包扩展至 " .. c .. "x" .. r)
+            end,
         },
     },
 

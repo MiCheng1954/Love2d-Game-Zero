@@ -10,13 +10,15 @@ local Input = {}
 -- 当前帧的输入状态表
 -- key: 动作名称，value: 是否激活
 local _actions = {
-    moveUp    = false,  -- 向上移动
-    moveDown  = false,  -- 向下移动
-    moveLeft  = false,  -- 向左移动
-    moveRight = false,  -- 向右移动
-    openBag   = false,  -- 呼出背包（TAB）
-    confirm   = false,  -- 确认（Enter）
-    cancel    = false,  -- 取消（ESC）
+    moveUp       = false,  -- 向上移动
+    moveDown     = false,  -- 向下移动
+    moveLeft     = false,  -- 向左移动
+    moveRight    = false,  -- 向右移动
+    openBag      = false,  -- 呼出背包（TAB）
+    confirm      = false,  -- 确认（Enter）
+    cancel       = false,  -- 取消（ESC）
+    rotateWeapon = false,  -- 旋转武器（背包放置模式 R 键）
+    pause        = false,  -- 暂停/继续（P 键）
 }
 
 -- 上一帧的输入状态（用于检测单次按下）
@@ -24,17 +26,19 @@ local _prevActions = {}
 
 -- 键盘按键到动作的映射表
 local _keyboardMap = {
-    w         = "moveUp",
-    s         = "moveDown",
-    a         = "moveLeft",
-    d         = "moveRight",
-    up        = "moveUp",
-    down      = "moveDown",
-    left      = "moveLeft",
-    right     = "moveRight",
-    tab       = "openBag",
+    w          = "moveUp",
+    s          = "moveDown",
+    a          = "moveLeft",
+    d          = "moveRight",
+    up         = "moveUp",
+    down       = "moveDown",
+    left       = "moveLeft",
+    right      = "moveRight",
+    tab        = "openBag",
     ["return"] = "confirm",
-    escape    = "cancel",
+    escape     = "cancel",
+    r          = "rotateWeapon",
+    p          = "pause",
 }
 
 -- 每帧更新输入状态，需在 love.update() 中调用

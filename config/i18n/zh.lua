@@ -10,7 +10,9 @@ return {
     ["hud.level"]        = "Lv.",
     ["hud.souls"]        = "灵魂",
     ["hud.enemies"]      = "敌人",
-    ["hud.hint"]         = "WASD 移动  |  ESC 返回菜单",
+    ["hud.hint"]         = "WASD 移动  |  TAB 背包  |  P 暂停  |  ESC 返回菜单",
+    ["hud.paused"]       = "⏸  已暂停",
+    ["hud.pause_hint"]   = "按 P 继续游戏",
 
     -- 升级界面
     ["upgrade.title"]    = "★  LEVEL UP  ★",
@@ -48,6 +50,7 @@ return {
     -- 升级子选项 label
     ["opt.weapon_new_basic.label"]   = "获得新武器",
     ["opt.weapon_upgrade.label"]     = "强化现有武器",
+    ["opt.weapon_bag_expand.label"]  = "扩展背包",
     ["opt.stat_hp.label"]            = "强化生命",
     ["opt.stat_speed.label"]         = "强化速度",
     ["opt.stat_attack.label"]        = "强化攻击",
@@ -60,6 +63,7 @@ return {
     -- 升级子选项 desc
     ["opt.weapon_new_basic.desc"]    = "获得一把随机武器加入背包",
     ["opt.weapon_upgrade.desc"]      = "随机强化一把已装备武器的攻击力",
+    ["opt.weapon_bag_expand.desc"]   = "背包行列各 +1（最大 6×8）",
     ["opt.stat_hp.desc"]             = "最大生命值 +30，并回复 30 点生命",
     ["opt.stat_speed.desc"]          = "移动速度 +20",
     ["opt.stat_attack.desc"]         = "攻击力 +10",
@@ -71,4 +75,28 @@ return {
 
     -- Debug 面板
     ["debug.title"]      = "[DEBUG]",
+
+    -- 背包界面
+    ["bag.title"]              = "◈  背包  ◈",
+    ["bag.empty"]              = "（空）",
+    ["bag.hint.browse"]        = "方向键 移动光标  |  Enter 拾起移动  |  ESC 关闭",
+    ["bag.hint.place"]         = "方向键 移动位置  |  R 旋转  |  Enter 放置  |  ESC 丢弃",
+    ["bag.hint.select"]        = "方向键 移动光标  |  Enter 选择  |  ESC 取消",
+    ["bag.hint.select_upgrade"]= "选择一把武器进行强化  |  Enter 确认  |  ESC 取消",
+
+    -- 武器名称
+    ["weapon.pistol.name"]  = "手枪",
+    ["weapon.shotgun.name"] = "散弹枪",
+    ["weapon.smg.name"]     = "冲锋枪",
+    ["weapon.sniper.name"]  = "狙击枪",
+    ["weapon.cannon.name"]  = "炮",
+    ["weapon.laser.name"]   = "激光枪",
+
+    -- 武器描述
+    ["weapon.pistol.desc"]  = "基础平衡型武器，适合各种场合。",
+    ["weapon.shotgun.desc"] = "高伤害近距离武器，射速较慢。",
+    ["weapon.smg.desc"]     = "极快射速，适合持续输出。",
+    ["weapon.sniper.desc"]  = "超远射程，极高单发伤害，射速极慢。",
+    ["weapon.cannon.desc"]  = "强力炮击，伤害高但射速慢。",
+    ["weapon.laser.desc"]   = "高射速中等伤害，持续压制。",
 }

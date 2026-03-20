@@ -15,14 +15,16 @@ local PHASE_CATEGORY = "category"  -- 选择大类阶段
 local PHASE_OPTION   = "option"    -- 选择子选项阶段
 
 -- 进入升级状态时调用
--- @param data: 上下文数据，需包含 player（玩家实例）和 onDone（完成回调）
+-- @param data: 上下文数据，需包含 player（玩家实例）、onDone（完成回调）
+--              可选 onWeaponDrop(weapon) 回调：获得新武器时推送背包放置界面
 function Upgrade:enter(data)
-    self._player     = data.player   -- 玩家实例
-    self._onDone     = data.onDone   -- 选择完成后的回调（返回游戏）
-    self._phase      = PHASE_CATEGORY  -- 当前阶段，从大类开始
-    self._catIndex   = 1               -- 当前高亮的大类索引
-    self._optIndex   = 1               -- 当前高亮的子选项索引
-    self._selCatId   = nil             -- 已选择的大类 ID
+    self._player       = data.player
+    self._onDone       = data.onDone
+    self._onWeaponDrop = data.onWeaponDrop  -- 获得新武器时的回调（Phase 6）
+    self._phase        = PHASE_CATEGORY
+    self._catIndex     = 1
+    self._optIndex     = 1
+    self._selCatId     = nil
 
     -- 灵魂刷新相关
     self._refreshCost   = 10           -- 刷新一次消耗的灵魂
@@ -34,9 +36,10 @@ end
 
 -- 退出升级状态时调用
 function Upgrade:exit()
-    self._player  = nil
-    self._onDone  = nil
-    self._phase   = nil
+    self._player        = nil
+    self._onDone        = nil
+    self._onWeaponDrop  = nil
+    self._phase         = nil
 end
 
 -- 每帧更新升级界面逻辑
@@ -64,10 +67,18 @@ function Upgrade:_updateCategoryPhase()
 
     -- 确认选择大类，进入子选项阶段
     if Input.isPressed("confirm") then
-        self._selCatId       = cats[self._catIndex].id
-        self._optIndex       = 1
-        self._currentOptions = UpgradeConfig[self._selCatId] or {}
-        self._phase          = PHASE_OPTION
+        self._selCatId = cats[self._catIndex].id
+        self._optIndex = 1
+        -- 过滤掉 canShow 返回 false 的选项（如背包已满时隐藏扩展选项）
+        local all = UpgradeConfig[self._selCatId] or {}
+        local filtered = {}
+        for _, opt in ipairs(all) do
+            if not opt.canShow or opt.canShow(self._player) then
+                table.insert(filtered, opt)
+            end
+        end
+        self._currentOptions = filtered
+        self._phase = PHASE_OPTION
     end
 end
 
@@ -99,11 +110,15 @@ function Upgrade:_updateOptionPhase()
     -- 确认选择子选项，应用效果并结束
     if Input.isPressed("confirm") then
         local opt = opts[self._optIndex]
+        local deferred = false
         if opt and opt.apply then
-            opt.apply(self._player)
+            -- 传入 ctx，让 apply 可以触发 onWeaponDrop 等回调
+            -- apply 返回 true 表示它自己负责后续流程（如推入背包界面），此时不立即调用 _onDone
+            local ctx = { onWeaponDrop = self._onWeaponDrop, onDone = self._onDone }
+            deferred = opt.apply(self._player, ctx) == true
         end
-        -- 触发完成回调，返回游戏
-        if self._onDone then
+        -- 仅在非延迟时触发完成回调，返回游戏
+        if not deferred and self._onDone then
             self._onDone()
         end
     end

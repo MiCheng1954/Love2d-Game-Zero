@@ -198,3 +198,153 @@ zero/
 - **修复**：将 game.lua 中 ESC→返回菜单 的处理从 `update()` 的轮询逻辑移至 `keypressed()` 事件回调。`keypressed` 是 Love2D 的一次性事件，只在新按下瞬间触发，不受跨状态按键残留影响
 - **经验**：覆盖层（push/pop）场景下，跨状态的"确认/取消"操作应统一走 `keypressed` 事件，而非 Input 系统的轮询；轮询适合连续输入（移动、攻击），不适合单次触发的状态切换
 
+---
+
+## [2026-03-20 21:30:00] Phase 6 — 武器背包系统
+
+**做了什么：** 实现完整武器背包流程，包含武器实体、背包数据结构、背包UI、独立攻击系统、升级流程接入，以及多项开发辅助功能。
+
+### 核心设计决策
+- **全员装备**：背包中所有武器均处于装备状态，不存在"选中激活"概念；每把武器拥有独立攻击计时器，独立锁定最近敌人，独立开火
+- **索敌接口抽象**：`_findNearestEnemyInRange(range)` 作为独立函数，Phase 7 可直接替换为更复杂的锁定逻辑而不影响武器系统
+- **背包尺寸**：初始 2×2，最大扩展至 6×8（高6宽8），升级选项可扩展行列
+
+### 新增文件
+
+#### `config/weapons.lua`
+- 定义 6 种武器配置：`pistol`（1×1）、`shotgun`（1×2）、`smg`（1×2）、`sniper`（1×3）、`cannon`（L形3格）、`laser`（T形4格）
+- 每种武器含：id、i18n key、形状、颜色、伤害/射速/弹速/射程、最大等级、升级加成
+
+#### `src/entities/weapon.lua`
+- `Weapon.new(configId)`：从配置表创建实例，分配唯一 instanceId
+- `Weapon.resetIdCounter()`：新游戏时重置 ID 计数，在 `Player.new()` 中调用
+- `Weapon:rotate()`：顺时针 90° 旋转，公式 `(r,c) → (maxC-c, r)`，旋转后重新对齐原点
+- `Weapon:getCells(originRow, originCol)`：返回武器当前旋转下占用的所有格子坐标列表
+- `Weapon:getEffectiveDamage(playerAttack)`：武器基础伤害 + 玩家攻击加成
+- `Weapon:tickAttack(dt)`：推进攻击计时器，返回本帧应触发的射击次数（0或多次）
+- `Weapon:levelUp()`：等级+1，应用 levelBonus 字段加成
+
+#### `src/systems/bag.lua`
+- `Bag.new(rows, cols)`：创建背包，内部维护 `_grid[row][col] = instanceId` 和 `_weapons` 实例表
+- `Bag:canPlace(weapon, row, col)`：检测放置合法性（不越界、不与他物冲突；同一武器移动时允许自身覆盖）
+- `Bag:place(weapon, row, col)`：清除旧位置 → 写入新位置 → 记录锚点 `_bagRow/_bagCol`
+- `Bag:remove(weapon)`：从网格中移除，清空锚点
+- `Bag:expand(dRows, dCols)`：扩展背包，不超过 `MAX_ROWS=6, MAX_COLS=8`
+- `Bag:getWeaponAt(row, col)`：返回指定格的武器实例，无则 nil
+- `Bag:getAllWeapons()`：返回按 instanceId 排序的所有武器实例列表
+- `Bag:hasSpace(weapon)`：扫描全部位置，判断能否放入当前形状的武器
+
+#### `src/states/bagUI.lua`
+三种模式，通过 `data.mode` 参数切换：
+- **BROWSE 模式**（TAB 打开）：方向键移动光标，Enter 拾起武器进入 PLACE 子模式，ESC 关闭
+- **PLACE 模式**（升级获得武器 / BROWSE 内拾起）：方向键移动预览，R 旋转，Enter 放置，ESC 丢弃/还原
+- **SELECT 模式**（武器强化时选武器）：方向键移动光标，Enter 选中（受 filter 函数过滤），ESC 取消
+
+布局（1280×720）：左侧背包网格（每格 64px），右侧武器详情，底部操作提示
+绘制规则：武器格显示颜色填充 + 锚点格显示 `Lv{n}` 标签；SELECT 模式不可选武器变暗；PLACE 预览绿色=可放/红色=冲突
+
+### 修改文件
+
+#### `src/entities/player.lua`
+- 引入 `Bag` 和 `Weapon` 模块
+- `Player.new()`：调用 `Weapon.resetIdCounter()`，初始化 `self._bag = Bag.new(2, 2)`
+- 新增 `Player:getBag()` 方法
+
+#### `src/states/game.lua`
+- 移除硬编码的 `AUTO_ATTACK_*` 常量，改为 `FALLBACK_*` 系列（无武器时的默认参数）
+- `_updateAutoAttack(dt)`：遍历 `bag:getAllWeapons()`，每把武器独立 `tickAttack(dt)`，调用 `_findNearestEnemyInRange(weapon.range)` 独立开火；背包为空时使用 FALLBACK 参数
+- `_findNearestEnemyInRange(range)`：抽象索敌逻辑，Phase 7 替换点
+- **暂停功能**：P 键切换 `_paused` 状态，暂停时跳过所有游戏逻辑，绘制半透明遮罩 + "⏸ 已暂停"提示
+- **TAB 打开背包**：在 keypressed 中处理 TAB → push bagUI（BROWSE 模式）
+- `onWeaponDrop(weapon, onDone, selectOpts)` 回调：`weapon == "__select__"` 时推入 SELECT 模式；否则推入 PLACE 模式
+- 调试面板：动态高度，逐行显示背包中所有武器信息（颜色区分）；显示暂停状态
+- `Log.info` 记录：游戏开始、玩家死亡、暂停/恢复事件
+
+#### `src/systems/input.lua`
+- 新增 `rotateWeapon` 动作（映射 `r` 键）
+- 新增 `pause` 动作（映射 `p` 键）
+
+#### `config/upgrades.lua`
+- `weapon_new_basic`：过滤背包能放下的候选武器；若全部放不下则先扩展背包1格再过滤；调用 `ctx.onWeaponDrop(weapon, ctx.onDone)` 并返回 `true`（延迟 onDone）
+- `weapon_upgrade`：检测有可升级武器后调用 `ctx.onWeaponDrop("__select__", ctx.onDone, { filter, hint, onSelect })`，返回 `true`
+- `weapon_bag_expand`：新增 `canShow(player)` — 背包已达最大尺寸时返回 false，从升级菜单隐藏该选项
+- 所有 apply 函数记录 `Log.info`
+
+#### `src/states/upgrade.lua`
+- `enter(data)`：新增存储 `self._onWeaponDrop = data.onWeaponDrop`
+- 大类/子选项渲染前通过 `canShow(player)` 过滤，最大背包时自动隐藏扩展选项
+- 选项确认：`deferred = opt.apply(player, ctx) == true`；若 deferred 则不立即调用 `_onDone()`，由 apply 自行控制流程
+- ctx 传入：`{ onWeaponDrop, onDone }`
+
+#### `config/i18n/zh.lua`
+- 新增：`hud.paused`、`hud.pause_hint`、TAB/P 键提示
+- 新增：`bag.hint.browse/place/select/select_upgrade`
+- 新增：6 种武器的 `nameKey/descKey`
+- 新增：`opt.weapon_bag_expand.label/desc`
+
+#### `src/states/console.lua`
+- 引入 `config.weapons`，`weapon <id>` 指令做合法性校验
+- 新增 `SET_ATTRS` 配置表（数据驱动属性修改），支持 11 项属性：`speed/attack/maxhp/hp/souls/critrate/critdamage/expbonus/soulbonus/pickupradius/defense`
+- 新增 `set <attr> <val>` 指令：查表 → 范围限制 → 写入玩家字段
+- 新增 `weapon <id>` 指令：创建武器实例，扫描背包第一个可放格位放入
+- **修复**：`addExp` → `gainExp`（方法名笔误导致崩溃）
+
+#### `src/systems/experience.lua`
+- 升级时调用 `Log.info(...)` 记录升级事件
+
+#### `main.lua`
+- 引入并注册 `bagUI` 状态
+
+### Bug 修复记录
+
+#### Bug #2/#3/#7（合并）— 升级后背包流程立即关闭
+- **现象**：选择「获得新武器」后背包 PLACE 界面一闪而过，无法放置武器
+- **原因**：`upgrade.lua` 在 `apply()` 返回后立即调用 `_onDone()`，导致 bagUI 被推入后又被立即弹出
+- **修复**：`apply()` 返回 `true` 表示延迟（deferred）流程，upgrade.lua 检查返回值决定是否立即 onDone；onDone 通过 ctx 传递给 apply，由 bagUI 回调在放置/丢弃完成后手动触发
+
+#### Bug #4/#9（合并）— 武器旋转方向错误 / 旋转180°
+- **现象 1**：武器旋转方向是逆时针（应为顺时针）
+- **现象 2**：每次按 R 键武器旋转 180° 而不是 90°
+- **原因 1**：旋转公式 `(r,c) → (c, maxR-r)` 为逆时针；应为 `(r,c) → (maxC-c, r)`
+- **原因 2**：`bagUI:keypressed("r")` 和 `Input.isPressed("rotateWeapon")` 在同一帧内各调用一次 `rotate()`，导致旋转两次
+- **修复 1**：更正旋转公式为顺时针
+- **修复 2**：移除 `keypressed` 中的旋转处理，统一使用 `Input.isPressed` 轮询（PLACE 模式内每帧检测一次）
+
+#### Bug #5 — 控制台 `exp` 指令崩溃
+- **现象**：在控制台输入 `exp <n>` 后游戏崩溃
+- **原因**：`player:addExp()` 方法不存在，正确方法名为 `player:gainExp()`
+- **修复**：`console.lua` 中 `addExp` 改为 `gainExp`
+
+#### Bug #6 — BROWSE 模式拾起武器后无法放回/退出
+- **现象**：在背包 BROWSE 模式按 Enter 拾起武器后，按 ESC 或放置后界面卡死/武器消失
+- **原因**：BROWSE→PLACE 切换时 `_onPlace` 和 `_onDiscard` 未设置，放置/取消均无回调，模式无法切回 BROWSE
+- **修复**：在 `_updateBrowse()` 的 Enter 拾起逻辑处即时注册内联回调：`_onPlace` 切回 BROWSE 并清空 `_placing`；`_onDiscard` 尝试原位还原或扫描第一个空位放回，再切回 BROWSE
+
+#### Bug #10 — 放置武器后颜色残留在背包格
+- **现象**：移动武器后原先占用的格子仍显示颜色
+- **原因**：`Bag:place()` 在写入新位置前未清除旧位置，导致旧格子的 instanceId 残留
+- **修复**：`place()` 开头调用 `remove(weapon)` 清除所有旧格子，再写入新位置
+
+#### Bug #11/#12（合并）— BROWSE 移动武器后原位残影
+- 同 Bug #10，修复方式相同，在 `Bag:place()` 中统一处理
+
+### 开发辅助功能
+
+#### 游戏暂停（P 键）
+- 暂停时所有游戏逻辑（敌人/投射物/掉落物/攻击/生成器）均停止更新
+- TAB 在暂停状态下仍可打开背包
+- 日志记录暂停/恢复时机和游戏时长
+
+#### 控制台 `weapon` 指令
+- 输入 `weapon <id>` 即可将指定武器放入背包
+- 自动校验武器 ID 是否存在（非法 ID 时列出所有可用 ID）
+- 自动扫描背包第一个可放置位置
+
+#### 控制台 `set` 指令
+- `set <attr> <val>` 数据驱动属性修改，支持 11 项玩家属性
+- 自动范围限制（min/max）和整数取整
+- 扩展新属性只需在 `SET_ATTRS` 表中添加一行
+
+### 遗留 Bug（低优先级，Phase 7 前处理）
+- **Bug #14**：背包中武器等级标签统一显示在锚点格左上角，cannon（L形）等非矩形武器的等级标签可能被其他格遮挡，需调整到更醒目的位置
+

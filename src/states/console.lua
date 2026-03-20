@@ -5,22 +5,42 @@
 ]]
 
 local Font = require("src.utils.font")
+local WeaponConfig = require("config.weapons")
 
 local Console = {}
 
 -- 支持的指令说明（用于 help 输出）
 local HELP_LINES = {
-    "level <n>  - 设置玩家等级为 n",
-    "levelup    - 触发一次升级界面",
-    "hp <n>     - 设置当前 HP",
-    "maxhp <n>  - 设置最大 HP",
-    "souls <n>  - 设置灵魂数量",
-    "speed <n>  - 设置移动速度",
-    "attack <n> - 设置攻击力",
-    "exp <n>    - 增加 n 点经验",
-    "kill       - 秒杀所有敌人",
-    "clear      - 清空控制台历史",
-    "help       - 显示此帮助",
+    "level <n>        - 设置玩家等级为 n",
+    "levelup          - 触发一次升级界面",
+    "hp <n>           - 设置当前 HP",
+    "maxhp <n>        - 设置最大 HP",
+    "souls <n>        - 设置灵魂数量",
+    "exp <n>          - 增加 n 点经验",
+    "kill             - 秒杀所有敌人",
+    "weapon <id>      - 获得指定武器放入背包（如: weapon pistol）",
+    "set <attr> <val> - 修改玩家属性（如: set speed 300）",
+    "  可用属性: speed attack maxhp hp souls critRate critDamage",
+    "             expBonus soulBonus pickupRadius defense",
+    "clear            - 清空控制台历史",
+    "help             - 显示此帮助",
+}
+
+-- set 指令支持的属性映射表
+-- key=指令名称, value={ field=实际字段名, min=最小值, max=最大值(可选), isInt=是否取整 }
+-- 后续新增玩家属性时只需在此表添加一行即可
+local SET_ATTRS = {
+    speed        = { field = "speed",        min = 1,   isInt = false },
+    attack       = { field = "attack",       min = 0,   isInt = false },
+    maxhp        = { field = "maxHp",        min = 1,   isInt = true  },
+    hp           = { field = "hp",           min = 1,   isInt = true  },
+    souls        = { field = "_souls",       min = 0,   isInt = true  },
+    critrate     = { field = "critRate",     min = 0,   max = 1, isInt = false },
+    critdamage   = { field = "critDamage",   min = 1,   isInt = false },
+    expbonus     = { field = "expBonus",     min = 0,   isInt = false },
+    soulbonus    = { field = "soulBonus",    min = 0,   isInt = false },
+    pickupradius = { field = "pickupRadius", min = 0,   isInt = false },
+    defense      = { field = "defense",      min = 0,   isInt = false },
 }
 
 -- 最多保留的历史行数
@@ -150,7 +170,7 @@ function Console:_execute(cmd)
             self._player.hp = math.min(math.max(1, math.floor(n)), self._player.maxHp)
             self:_addLine("hp -> " .. self._player.hp)
         else
-            self:_addLine("用法: hp <n>")
+            self:_addLine("用法: hp <n>  （或使用 set hp <n>）")
         end
 
     elseif verb == "maxhp" then
@@ -160,7 +180,7 @@ function Console:_execute(cmd)
             self._player.hp    = math.min(self._player.hp, self._player.maxHp)
             self:_addLine("maxhp -> " .. self._player.maxHp)
         else
-            self:_addLine("用法: maxhp <n>")
+            self:_addLine("用法: maxhp <n>  （或使用 set maxhp <n>）")
         end
 
     elseif verb == "souls" then
@@ -169,7 +189,7 @@ function Console:_execute(cmd)
             self._player._souls = math.max(0, math.floor(n))
             self:_addLine("souls -> " .. self._player._souls)
         else
-            self:_addLine("用法: souls <n>")
+            self:_addLine("用法: souls <n>  （或使用 set souls <n>）")
         end
 
     elseif verb == "speed" then
@@ -178,7 +198,7 @@ function Console:_execute(cmd)
             self._player.speed = math.max(1, n)
             self:_addLine("speed -> " .. self._player.speed)
         else
-            self:_addLine("用法: speed <n>")
+            self:_addLine("用法: speed <n>  （或使用 set speed <n>）")
         end
 
     elseif verb == "attack" then
@@ -187,13 +207,72 @@ function Console:_execute(cmd)
             self._player.attack = math.max(0, n)
             self:_addLine("attack -> " .. self._player.attack)
         else
-            self:_addLine("用法: attack <n>")
+            self:_addLine("用法: attack <n>  （或使用 set attack <n>）")
+        end
+
+    elseif verb == "set" then
+        -- 数据驱动属性修改：set <attr> <value>
+        local attrKey = parts[2] and parts[2]:lower() or ""
+        local val     = tonumber(parts[3])
+        local def     = SET_ATTRS[attrKey]
+        if not def then
+            self:_addLine("未知属性: " .. attrKey)
+            self:_addLine("输入 help 查看可用属性列表")
+        elseif not val then
+            self:_addLine("用法: set " .. attrKey .. " <数值>")
+        elseif not self._player then
+            self:_addLine("无玩家引用")
+        else
+            -- 范围限制
+            val = math.max(def.min, val)
+            if def.max then val = math.min(def.max, val) end
+            if def.isInt then val = math.floor(val) end
+            self._player[def.field] = val
+            -- hp 不能超过 maxHp
+            if def.field == "maxHp" then
+                self._player.hp = math.min(self._player.hp, self._player.maxHp)
+            end
+            self:_addLine(attrKey .. " -> " .. tostring(self._player[def.field]))
+        end
+
+    elseif verb == "weapon" then
+        -- 给玩家背包添加指定武器
+        local id = parts[2] and parts[2]:lower() or ""
+        if not WeaponConfig[id] then
+            -- 列出可用 ID
+            local ids = {}
+            for k in pairs(WeaponConfig) do table.insert(ids, k) end
+            table.sort(ids)
+            self:_addLine("未知武器 ID: " .. id)
+            self:_addLine("可用: " .. table.concat(ids, ", "))
+        elseif not self._player then
+            self:_addLine("无玩家引用")
+        else
+            local Weapon = require("src.entities.weapon")
+            local bag    = self._player:getBag()
+            local weapon = Weapon.new(id)
+            -- 扫描第一个可放格子直接放入
+            local placed = false
+            for r = 1, bag.rows do
+                for c = 1, bag.cols do
+                    if bag:place(weapon, r, c) then
+                        placed = true
+                        break
+                    end
+                end
+                if placed then break end
+            end
+            if placed then
+                self:_addLine("已获得武器: " .. id .. " (Lv1)")
+            else
+                self:_addLine("背包已满，无法放入 " .. id)
+            end
         end
 
     elseif verb == "exp" then
         local n = tonumber(arg1)
         if n and self._player then
-            self._player:addExp(math.floor(n))
+            self._player:gainExp(math.floor(n))
             self:_addLine("已添加 " .. math.floor(n) .. " 点经验")
         else
             self:_addLine("用法: exp <n>")

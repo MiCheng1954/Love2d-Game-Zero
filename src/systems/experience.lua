@@ -7,6 +7,8 @@
 local Experience = {}
 Experience.__index = Experience
 
+local Log = require("src.utils.log")
+
 -- 构造函数，创建一个新的经验系统实例
 -- @param player: 绑定的玩家实例
 function Experience.new(player)
@@ -43,6 +45,10 @@ function Experience:_triggerLevelUp()
 
     -- 基础属性自动成长
     self:_applyLevelUpGrowth()
+
+    Log.info(string.format("玩家升级 -> Lv%d  HP:%d/%d  ATK:%d",
+        self._player._level, self._player.hp,
+        self._player.maxHp, self._player.attack))
 
     -- 触发升级回调（弹出奖励界面）
     if self._onLevelUp then

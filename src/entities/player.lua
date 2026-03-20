@@ -6,6 +6,8 @@
 
 local Entity = require("src.entities.entity")
 local Input  = require("src.systems.input")
+local Bag    = require("src.systems.bag")
+local Weapon = require("src.entities.weapon")
 
 local Player = setmetatable({}, { __index = Entity })
 Player.__index = Player
@@ -38,6 +40,10 @@ function Player.new(x, y)
     -- 移动状态
     self._dx          = 0     -- 当前帧水平移动方向
     self._dy          = 0     -- 当前帧垂直移动方向
+
+    -- 背包（初始 2×2，武器放入即视为装备）
+    Weapon.resetIdCounter()
+    self._bag = Bag.new(2, 2)
 
     return self
 end
@@ -144,6 +150,12 @@ end
 -- @return 灵魂数量（number）
 function Player:getSouls()
     return self._souls
+end
+
+-- 获取背包实例
+-- @return Bag 实例
+function Player:getBag()
+    return self._bag
 end
 
 return Player

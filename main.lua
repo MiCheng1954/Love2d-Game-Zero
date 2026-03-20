@@ -14,6 +14,7 @@ local Upgrade      = require("src.states.upgrade")
 local Gameover     = require("src.states.gameover")
 local Console      = require("src.states.console")
 local BugReport    = require("src.states.bugReport")  -- [可剔除] 注释此行+register+F12分支即可移除
+local BagUI        = require("src.states.bagUI")
 
 -- 游戏初始化，Love2D 启动后调用一次
 function love.load()
@@ -37,6 +38,7 @@ function love.load()
     StateManager.register("gameover",  Gameover)
     StateManager.register("console",   Console)
     StateManager.register("bugReport", BugReport)  -- [可剔除] 注释此行+require+F12分支即可移除
+    StateManager.register("bagUI",     BagUI)
 
     -- 设置默认字体抗锯齿过滤
     love.graphics.setDefaultFilter("nearest", "nearest")

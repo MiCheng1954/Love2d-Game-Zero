@@ -1,7 +1,7 @@
 --[[
     src/states/game.lua
     游戏主状态，局内核心玩法的入口
-    Phase 4：接入掉落物、吸附、经验升级系统
+    Phase 6：接入武器背包系统，自动攻击由背包所有武器独立触发
 ]]
 
 local Timer      = require("src.utils.timer")
@@ -14,6 +14,8 @@ local Spawner    = require("src.systems.spawner")
 local Experience = require("src.systems.experience")
 local Player     = require("src.entities.player")
 local Projectile = require("src.entities.projectile")
+local Weapon     = require("src.entities.weapon")
+local Log        = require("src.utils.log")
 
 local Game = {}
 
@@ -26,13 +28,15 @@ local _spawner     = nil   -- 敌人生成系统实例
 local _experience  = nil   -- 经验升级系统实例
 local _pendingUpgrade = nil  -- 待处理的升级跳转数据（当帧 update 结束后再切换，防止 exit 破坏帧内状态）
 
--- 自动攻击配置
-local AUTO_ATTACK_INTERVAL = 0.5   -- 自动攻击间隔（秒）
-local AUTO_ATTACK_DAMAGE   = 20    -- 每发子弹伤害
-local AUTO_ATTACK_SPEED    = 450   -- 子弹飞行速度（像素/秒）
-local AUTO_ATTACK_RANGE    = 350   -- 自动锁定的最大距离（像素）
+-- 自动攻击配置（无装备武器时的 fallback 参数）
+local FALLBACK_ATTACK_INTERVAL = 1.0   -- fallback 攻击间隔（秒）
+local FALLBACK_ATTACK_DAMAGE   = 20    -- fallback 伤害
+local FALLBACK_ATTACK_SPEED    = 450   -- fallback 子弹速度
+local FALLBACK_ATTACK_RANGE    = 350   -- fallback 索敌范围
 
-local _attackTimer = 0             -- 攻击冷却计时器（秒）
+local _attackTimer = 0             -- 攻击冷却计时器（秒）-- 已弃用，保留供注释参考
+local _fallbackTimer = 0           -- fallback 攻击冷却计时器
+local _paused = false              -- 游戏是否暂停
 
 -- 升级提示浮窗状态
 local _levelUpNotice = {
@@ -50,10 +54,12 @@ function Game:enter()
     _enemies     = {}
     _projectiles = {}
     _pickups     = {}
-    _attackTimer = 0
+    _fallbackTimer = 0
+    _paused        = false
 
     -- 初始化玩家
     _player = Player.new(0, 0)
+    Log.info("游戏开始，玩家初始化完毕")
 
     -- 初始化摄像机
     _camera = Camera.new(1280, 720)
@@ -66,8 +72,6 @@ function Game:enter()
     -- 初始化经验系统，注册升级回调
     _experience = Experience.new(_player)
     _experience:onLevelUp(function(player, newLevel)
-        -- 不立即切换，先记录待处理数据，等当帧 update 结束后再跳转
-        -- 防止 StateManager.switch 触发 exit() 清空 _spawner 等变量，导致帧内后续逻辑崩溃
         _pendingUpgrade = {
             player = player,
             newLevel = newLevel,
@@ -86,12 +90,34 @@ function Game:exit()
     _spawner         = nil
     _experience      = nil
     _pendingUpgrade  = nil
+    _fallbackTimer   = 0
 end
 
 -- 每帧更新游戏逻辑
 -- @param dt: 距上一帧的时间间隔（秒）
 function Game:update(dt)
     Input.update()
+
+    -- P 键切换暂停（不受暂停本身阻断，始终响应）
+    if Input.isPressed("pause") then
+        _paused = not _paused
+        Log.info(_paused and "游戏暂停" or "游戏继续")
+    end
+
+    -- 暂停时跳过所有游戏逻辑，仅允许 TAB 打开背包和 ESC 返回菜单
+    if _paused then
+        -- TAB 暂停时也可查看背包（BROWSE 只读模式）
+        if Input.isPressed("openBag") then
+            local StateManager = require("src.states.stateManager")
+            StateManager.push("bagUI", {
+                bag     = _player:getBag(),
+                mode    = "browse",
+                onClose = function() StateManager.pop() end,
+            })
+        end
+        return
+    end
+
     Timer.update(dt)
 
     -- 更新玩家
@@ -143,6 +169,8 @@ function Game:update(dt)
 
     -- 检测玩家死亡（Phase 10 接入传承系统，暂时直接跳转结算）
     if _player:isDead() then
+        Log.info(string.format("玩家死亡 — Lv%d  elapsed=%.1fs  enemies=%d",
+            _player:getLevel(), _spawner._elapsed, #_enemies))
         local StateManager = require("src.states.stateManager")
         StateManager.switch("gameover")
         return
@@ -156,9 +184,16 @@ function Game:update(dt)
     -- 更新摄像机
     _camera:update(dt)
 
-    -- TAB 呼出背包（Phase 6 接入）
+    -- TAB 呼出背包（BROWSE 模式）
     if Input.isPressed("openBag") then
-        -- TODO: Phase 6
+        local StateManager = require("src.states.stateManager")
+        StateManager.push("bagUI", {
+            bag     = _player:getBag(),
+            mode    = "browse",
+            onClose = function()
+                StateManager.pop()
+            end,
+        })
     end
 
     -- ESC 返回菜单：移至 keypressed 事件处理，避免控制台/面板关闭时的按键残留穿透
@@ -171,6 +206,41 @@ function Game:update(dt)
         -- push 而非 switch：保留游戏状态不调用 exit，选完后 pop 回来不调用 enter
         StateManager.push("upgrade", {
             player = data.player,
+            -- 获得新武器/需选武器时推入背包界面
+            -- weapon == "__select__" 时为 SELECT 模式（武器升级选择），否则为 PLACE 模式
+            onWeaponDrop = function(weapon, onDone, selectOpts)
+                if weapon == "__select__" then
+                    -- SELECT 模式：让玩家选一把武器升级
+                    StateManager.push("bagUI", {
+                        bag        = _player:getBag(),
+                        mode       = "select",
+                        filter     = selectOpts and selectOpts.filter,
+                        selectHint = selectOpts and selectOpts.hint,
+                        onSelect   = function(w)
+                            if selectOpts and selectOpts.onSelect then
+                                selectOpts.onSelect(w)
+                            end
+                            StateManager.pop()         -- pop bagUI
+                            if onDone then onDone() end -- pop upgrade
+                        end,
+                    })
+                else
+                    -- PLACE 模式：放置新获得的武器
+                    StateManager.push("bagUI", {
+                        bag       = _player:getBag(),
+                        mode      = "place",
+                        weapon    = weapon,
+                        onPlace   = function()
+                            StateManager.pop()
+                            if onDone then onDone() end
+                        end,
+                        onDiscard = function()
+                            StateManager.pop()
+                            if onDone then onDone() end
+                        end,
+                    })
+                end
+            end,
             onDone = function()
                 StateManager.pop()
             end,
@@ -178,37 +248,63 @@ function Game:update(dt)
     end
 end
 
--- 自动攻击：每隔一定时间向最近的敌人发射子弹
+-- 自动攻击：背包中每把武器独立计时，各自锁定最近的敌人发射子弹
+-- 若背包为空则使用 fallback 参数维持基本攻击能力
 -- @param dt: 距上一帧的时间间隔（秒）
 function Game._updateAutoAttack(dt)
-    _attackTimer = _attackTimer + dt
-    if _attackTimer < AUTO_ATTACK_INTERVAL then return end
+    local bag     = _player:getBag()
+    local weapons = bag:getAllWeapons()
 
-    local nearest = Game._findNearestEnemy()
-    if not nearest then return end
-
-    _attackTimer = _attackTimer - AUTO_ATTACK_INTERVAL
-
-    local dx, dy = MathUtils.normalize(
-        nearest.x - _player.x,
-        nearest.y - _player.y)
-
-    local proj = Projectile.new(
-        _player.x, _player.y,
-        dx, dy,
-        AUTO_ATTACK_DAMAGE,
-        AUTO_ATTACK_SPEED)
-
-    proj._critRate = _player.critRate
-
-    table.insert(_projectiles, proj)
+    if #weapons > 0 then
+        -- 每把武器独立计时、独立索敌、独立发射
+        for _, weapon in ipairs(weapons) do
+            local shots = weapon:tickAttack(dt)
+            if shots > 0 then
+                local target = Game._findNearestEnemyInRange(weapon.range)
+                if target then
+                    for _ = 1, shots do
+                        local dx, dy = MathUtils.normalize(
+                            target.x - _player.x,
+                            target.y - _player.y)
+                        local proj = Projectile.new(
+                            _player.x, _player.y,
+                            dx, dy,
+                            weapon:getEffectiveDamage(_player.attack),
+                            weapon.bulletSpeed)
+                        proj._critRate = _player.critRate
+                        table.insert(_projectiles, proj)
+                    end
+                end
+            end
+        end
+    else
+        -- Fallback：无武器时维持基础攻击
+        _fallbackTimer = _fallbackTimer + dt
+        if _fallbackTimer >= FALLBACK_ATTACK_INTERVAL then
+            _fallbackTimer = _fallbackTimer - FALLBACK_ATTACK_INTERVAL
+            local target = Game._findNearestEnemyInRange(FALLBACK_ATTACK_RANGE)
+            if target then
+                local dx, dy = MathUtils.normalize(
+                    target.x - _player.x,
+                    target.y - _player.y)
+                local proj = Projectile.new(
+                    _player.x, _player.y,
+                    dx, dy,
+                    FALLBACK_ATTACK_DAMAGE,
+                    FALLBACK_ATTACK_SPEED)
+                proj._critRate = _player.critRate
+                table.insert(_projectiles, proj)
+            end
+        end
+    end
 end
 
--- 在所有敌人中寻找距离玩家最近且在范围内的目标
+-- 在所有敌人中寻找距离玩家最近且在指定范围内的目标（索敌接口，Phase 7+ 可替换）
+-- @param range: 最大索敌距离（像素）
 -- @return 最近的 Enemy 实例，若无则返回 nil
-function Game._findNearestEnemy()
+function Game._findNearestEnemyInRange(range)
     local nearest = nil
-    local minDist = AUTO_ATTACK_RANGE
+    local minDist = range
 
     for _, enemy in ipairs(_enemies) do
         if not enemy._isDead then
@@ -316,6 +412,19 @@ function Game._drawHUD()
     love.graphics.setColor(0.5, 0.5, 0.5)
     love.graphics.print(T("hud.hint"), 20, 695)
 
+    -- 暂停遮罩
+    if _paused then
+        love.graphics.setColor(0, 0, 0, 0.5)
+        love.graphics.rectangle("fill", 0, 0, 1280, 720)
+        love.graphics.setColor(1, 0.85, 0.1)
+        Font.set(28)
+        love.graphics.printf(T("hud.paused"), 0, 320, 1280, "center")
+        Font.set(15)
+        love.graphics.setColor(0.6, 0.6, 0.6)
+        love.graphics.printf(T("hud.pause_hint"), 0, 368, 1280, "center")
+        Font.set(13)
+    end
+
     -- 升级提示浮窗
     if _levelUpNotice.active then
         -- 计算淡出透明度（最后 0.8 秒开始淡出）
@@ -353,8 +462,13 @@ function Game._drawDebugPanel()
     local y  = 20
     local lh = 16
 
+    local bag     = _player:getBag()
+    local weapons = bag:getAllWeapons()
+    -- 面板高度根据武器数量动态调整
+    local panelH  = lh * (11 + math.max(1, #weapons)) + 8
+
     love.graphics.setColor(0, 0, 0, 0.6)
-    love.graphics.rectangle("fill", x - 8, y - 4, 370, 220)
+    love.graphics.rectangle("fill", x - 8, y - 4, 370, panelH)
 
     love.graphics.setColor(0.4, 1, 0.4)
     Font.set(13)
@@ -377,19 +491,41 @@ function Game._drawDebugPanel()
     love.graphics.print(string.format(
         "Enemies: %d  | Projs: %d  | Pickups: %d",
         #_enemies, #_projectiles, #_pickups), x, y + lh * 5)
+
+    -- 背包信息
     love.graphics.print(string.format(
-        "AtkTimer: %.2f / %.2f",
-        _attackTimer, AUTO_ATTACK_INTERVAL), x, y + lh * 6)
-    love.graphics.print(string.format(
-        "Spawner: interval=%.2f  batch=%d",
-        _spawner._interval, _spawner._batchSize), x, y + lh * 7)
-    love.graphics.print(string.format(
-        "Elapsed: %.1f s",
-        _spawner._elapsed), x, y + lh * 8)
+        "Bag: %dx%d  | Weapons: %d",
+        bag.cols, bag.rows, #weapons), x, y + lh * 6)
+
+    -- 每把武器独立一行
+    if #weapons == 0 then
+        love.graphics.setColor(0.5, 0.5, 0.5)
+        love.graphics.print("  (no weapon - fallback)", x, y + lh * 7)
+    else
+        for i, w in ipairs(weapons) do
+            love.graphics.setColor(w.color[1], w.color[2], w.color[3])
+            love.graphics.print(string.format(
+                "  W%d: %-8s Lv%d  spd=%.1f tmr=%.2f",
+                i, w.configId, w.level, w.attackSpeed, w._attackTimer),
+                x, y + lh * (6 + i))
+        end
+    end
+
+    local weaponRows = math.max(1, #weapons)
+    local baseRow    = 7 + weaponRows
 
     love.graphics.setColor(1, 1, 0.4)
     love.graphics.print(string.format(
-        "FPS: %d", love.timer.getFPS()), x, y + lh * 9)
+        "FPS: %d", love.timer.getFPS()), x, y + lh * baseRow)
+
+    -- Spawner 信息
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print(string.format(
+        "Spawner: interval=%.2f  batch=%d",
+        _spawner._interval, _spawner._batchSize), x, y + lh * (baseRow + 1))
+    love.graphics.print(string.format(
+        "Elapsed: %.1f s  | Paused: %s",
+        _spawner._elapsed, tostring(_paused)), x, y + lh * (baseRow + 2))
 
     Font.reset()
 end
