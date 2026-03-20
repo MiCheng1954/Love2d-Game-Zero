@@ -283,16 +283,46 @@ function BagUI:_drawGrid()
                 end
                 love.graphics.rectangle("fill", px + 2, py + 2, CELL_SIZE - 6, CELL_SIZE - 6, 3, 3)
 
-                -- 只在锚点格显示武器等级
-                if w._bagRow == r and w._bagCol == c then
-                    love.graphics.setColor(dimmed and 0.4 or 1, dimmed and 0.4 or 1, dimmed and 0.4 or 1)
-                    Font.set(11)
-                    love.graphics.print("Lv" .. w.level, px + 4, py + 4)
-                    Font.set(15)
-                end
+                -- 等级标签在格子循环后统一绘制（见下方）
             end
         end
     end
+
+    -- 武器等级标签：遍历所有武器，在其视觉中心绘制（避免被相邻格遮挡）
+    local drawn = {}  -- 避免同一把武器绘制多次
+    for r = 1, bag.rows do
+        for c = 1, bag.cols do
+            local w = bag:getWeaponAt(r, c)
+            if w and w._bagRow and not drawn[w.instanceId] then
+                drawn[w.instanceId] = true
+                local dimmed = (mode == MODE_SELECT) and self._filter and not self._filter(w)
+
+                -- 计算武器所有格子的像素中心均值
+                local cells = w:getCells(w._bagRow, w._bagCol)
+                local sumX, sumY = 0, 0
+                for _, cell in ipairs(cells) do
+                    sumX = sumX + GRID_X + (cell.col - 1) * CELL_SIZE + CELL_SIZE * 0.5
+                    sumY = sumY + GRID_Y + (cell.row - 1) * CELL_SIZE + CELL_SIZE * 0.5
+                end
+                local cx = sumX / #cells
+                local cy = sumY / #cells
+
+                -- 绘制等级标签（深色背景 + 白色/暗白文字）
+                Font.set(11)
+                local label = "Lv" .. w.level
+                local tw = Font.get(11):getWidth(label)
+                local th = Font.get(11):getHeight()
+                local lx = math.floor(cx - tw * 0.5)
+                local ly = math.floor(cy - th * 0.5)
+                -- 背景框
+                love.graphics.setColor(0, 0, 0, dimmed and 0.35 or 0.65)
+                love.graphics.rectangle("fill", lx - 2, ly - 1, tw + 4, th + 2, 2, 2)
+                -- 文字
+                local br = dimmed and 0.4 or 1
+                love.graphics.setColor(br, br, br)
+                love.graphics.print(label, lx, ly)
+                Font.set(15)
+            end
 
     -- 光标（BROWSE / SELECT 模式共用）
     if mode == MODE_BROWSE or mode == MODE_SELECT then
