@@ -1,0 +1,153 @@
+--[[
+    src/entities/player.lua
+    玩家类，继承自 Entity
+    负责处理玩家的移动、渲染以及状态管理
+]]
+
+local Entity = require("src.entities.entity")
+local Input  = require("src.systems.input")
+
+local Player = setmetatable({}, { __index = Entity })
+Player.__index = Player
+
+-- 玩家外观配置（代码绘制 fallback 使用，替换资产时修改 _sprite 即可）
+local PLAYER_RADIUS = 16            -- 玩家碰撞圆半径（像素）
+local PLAYER_COLOR  = {0.2, 0.6, 1} -- 玩家颜色（蓝色）
+
+-- 构造函数，创建一个新的玩家实例
+-- @param x: 初始世界坐标 X
+-- @param y: 初始世界坐标 Y
+function Player.new(x, y)
+    -- 调用父类构造
+    local self = setmetatable(Entity.new(x, y), Player)
+
+    -- 覆盖基类属性
+    self.speed        = 180   -- 玩家移动速度（像素/秒）
+    self.maxHp        = 100   -- 玩家最大生命值
+    self.hp           = 100   -- 玩家当前生命值
+    self.width        = PLAYER_RADIUS * 2   -- 碰撞体宽度
+    self.height       = PLAYER_RADIUS * 2   -- 碰撞体高度
+
+    -- 玩家专属属性
+    self._level       = 1     -- 当前等级
+    self._exp         = 0     -- 当前经验值
+    self._expToNext   = 100   -- 升级所需经验值
+    self._souls       = 0     -- 当前持有灵魂数量
+    self._revives     = 1     -- 剩余复活次数
+
+    -- 移动状态
+    self._dx          = 0     -- 当前帧水平移动方向
+    self._dy          = 0     -- 当前帧垂直移动方向
+
+    return self
+end
+
+-- 每帧更新玩家逻辑
+-- @param dt: 距上一帧的时间间隔（秒）
+function Player:update(dt)
+    self:_handleMovement(dt)
+end
+
+-- 处理玩家移动逻辑
+-- @param dt: 距上一帧的时间间隔（秒）
+function Player:_handleMovement(dt)
+    -- 从输入系统获取方向
+    self._dx, self._dy = Input.getMoveDirection()
+
+    -- 更新位置
+    self.x = self.x + self._dx * self.speed * dt
+    self.y = self.y + self._dy * self.speed * dt
+end
+
+-- 将玩家绘制到屏幕上
+function Player:draw()
+    if not self._isVisible then return end
+
+    if self._sprite then
+        -- 有资产时：绘制贴图（预留接口）
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.draw(self._sprite, self.x, self.y, 0, 1, 1,
+            self.width / 2, self.height / 2)
+    else
+        -- 无资产时：代码绘制 fallback
+        -- 身体（蓝色圆形）
+        love.graphics.setColor(PLAYER_COLOR[1], PLAYER_COLOR[2], PLAYER_COLOR[3])
+        love.graphics.circle("fill", self.x, self.y, PLAYER_RADIUS)
+
+        -- 边框（深蓝色）
+        love.graphics.setColor(0.1, 0.3, 0.7)
+        love.graphics.circle("line", self.x, self.y, PLAYER_RADIUS)
+
+        -- 方向指示点（朝向最后移动的方向）
+        if self._dx ~= 0 or self._dy ~= 0 then
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.circle("fill",
+                self.x + self._dx * PLAYER_RADIUS * 0.6,
+                self.y + self._dy * PLAYER_RADIUS * 0.6,
+                3)
+        end
+    end
+end
+
+-- 玩家拾取经验值
+-- @param amount: 经验值数量
+function Player:gainExp(amount)
+    self._exp = self._exp + math.floor(amount * self.expBonus)
+    -- 检测升级
+    while self._exp >= self._expToNext do
+        self:_levelUp()
+    end
+end
+
+-- 玩家拾取灵魂
+-- @param amount: 灵魂数量
+function Player:gainSouls(amount)
+    self._souls = self._souls + math.floor(amount * self.soulBonus)
+end
+
+-- 消耗灵魂
+-- @param amount: 消耗数量
+-- @return 是否消耗成功（boolean）
+function Player:spendSouls(amount)
+    if self._souls < amount then return false end
+    self._souls = self._souls - amount
+    return true
+end
+
+-- 处理升级逻辑
+function Player:_levelUp()
+    self._exp      = self._exp - self._expToNext
+    self._level    = self._level + 1
+    self._expToNext = math.floor(self._expToNext * 1.2)  -- 每级所需经验递增20%
+
+    -- 升级时基础属性自动成长
+    self.maxHp  = self.maxHp  + 10
+    self.hp     = math.min(self.hp + 20, self.maxHp)     -- 升级回复部分血量
+    self.attack = self.attack + 2
+end
+
+-- 死亡时回调，覆盖基类实现
+function Player:onDeath()
+    self._isDead = true
+    -- TODO: Phase 10 接入传承系统与复活逻辑
+end
+
+-- 获取当前等级
+-- @return 当前等级（number）
+function Player:getLevel()
+    return self._level
+end
+
+-- 获取经验进度（0~1）
+-- @return 经验进度比例（number）
+function Player:getExpProgress()
+    return self._exp / self._expToNext
+end
+
+-- 获取当前灵魂数量
+-- @return 灵魂数量（number）
+function Player:getSouls()
+    return self._souls
+end
+
+return Player

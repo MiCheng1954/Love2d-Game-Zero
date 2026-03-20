@@ -92,3 +92,19 @@ zero/
 - `src/states/gameover.lua`：结算状态（占位，Phase 10 完善）
 - `src/utils/math.lua`：数学工具库（distance/angle/normalize/lerp/clamp）
 - `src/utils/timer.lua`：计时器工具库（after/every/cancel/update/clear）
+
+## [2026-03-20 16:35:13] Phase 2 — 玩家移动与摄像机
+
+**做了什么：** 接入输入系统、实体基类、玩家类、摄像机系统
+
+- `src/systems/input.lua`：输入抽象层，WASD 映射到动作，预留手柄/鼠标接口，支持 isDown/isPressed/isReleased
+- `src/entities/entity.lua`：实体基类，包含 10 项基础属性、takeDamage/heal/onDeath/getBounds 等方法
+- `src/entities/player.lua`：玩家类，继承 Entity，WASD 移动、经验/灵魂获取、升级自动成长
+- `src/systems/camera.lua`：摄像机，平滑跟随玩家，attach/detach 分离世界层与 UI 层
+- `src/states/game.lua`：接入以上系统，背景参考网格，HUD 显示 HP/经验条/等级/灵魂
+
+## [2026-03-20 16:44:30] 修复中文输入法拦截按键问题
+
+**做了什么：** 修复 Windows 中文 IME 导致 WASD 无响应的 Bug
+
+- `main.lua`：在 `love.load()` 中添加 `love.keyboard.setTextInput(false)`，禁用文字输入模式，防止 IME 拦截游戏按键

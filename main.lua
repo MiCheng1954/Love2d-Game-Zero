@@ -12,10 +12,14 @@ local Gameover     = require("src.states.gameover")
 
 -- 游戏初始化，Love2D 启动后调用一次
 function love.load()
+    -- 禁用文字输入模式，防止中文输入法（IME）拦截 WASD 等游戏按键
+    -- 需要文字输入的界面（如聊天框）再单独开启
+    love.keyboard.setTextInput(false)
+
     -- 注册所有游戏状态
-    StateManager.register("menu",    Menu)
-    StateManager.register("game",    Game)
-    StateManager.register("upgrade", Upgrade)
+    StateManager.register("menu",     Menu)
+    StateManager.register("game",     Game)
+    StateManager.register("upgrade",  Upgrade)
     StateManager.register("gameover", Gameover)
 
     -- 设置默认字体抗锯齿过滤
