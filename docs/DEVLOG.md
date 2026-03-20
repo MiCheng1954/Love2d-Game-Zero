@@ -119,3 +119,15 @@ zero/
 - `src/systems/spawner.lua`：生成系统，按时间动态调整难度（间隔/批次），实现慢快节奏曲线
 - `src/systems/collision.lua`：碰撞系统，圆形碰撞检测、子弹vs敌人、敌人vs玩家、死亡清理
 - `src/states/game.lua`：接入所有系统，自动锁定最近敌人攻击，死亡后跳转 gameover，右上角调试面板
+
+## [2026-03-20 17:09:58] Phase 4 — 掉落物、吸附、经验升级
+
+**做了什么：** 接入掉落物系统、自动吸附、经验升级、升级提示浮窗
+
+- `src/entities/pickup.lua`：掉落物类（EXP/SOUL/TRIGGER），漂浮动画，吸附半径检测，飞向玩家，到达后触发拾取效果
+- `src/systems/experience.lua`：经验升级系统，统一管理升级逻辑，支持连续升级，升级回调外部注册
+- `src/entities/enemy.lua`：死亡时生成掉落物列表（经验+灵魂+10%概率触发器）
+- `src/systems/collision.lua`：击杀返回掉落物数据，由 game.lua 统一加入场景
+- `src/entities/player.lua`：移除 gainExp 内的升级逻辑，升级统一交由 Experience 系统处理
+- `src/states/game.lua`：接入掉落物更新/绘制，升级时显示屏幕中央金色浮窗（含淡出效果）
+- **修复**：player.lua 与 experience.lua 升级逻辑冲突导致升级回调不触发

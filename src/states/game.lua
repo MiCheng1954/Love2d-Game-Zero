@@ -1,7 +1,7 @@
 --[[
     src/states/game.lua
     游戏主状态，局内核心玩法的入口
-    Phase 3：接入敌人、投射物、生成系统、碰撞检测、自动攻击
+    Phase 4：接入掉落物、吸附、经验升级系统
 ]]
 
 local Timer      = require("src.utils.timer")
@@ -10,6 +10,7 @@ local Input      = require("src.systems.input")
 local Camera     = require("src.systems.camera")
 local Collision  = require("src.systems.collision")
 local Spawner    = require("src.systems.spawner")
+local Experience = require("src.systems.experience")
 local Player     = require("src.entities.player")
 local Projectile = require("src.entities.projectile")
 
@@ -19,7 +20,9 @@ local _player      = nil   -- 玩家实例
 local _camera      = nil   -- 摄像机实例
 local _enemies     = {}    -- 当前场景所有敌人列表
 local _projectiles = {}    -- 当前场景所有投射物列表
+local _pickups     = {}    -- 当前场景所有掉落物列表
 local _spawner     = nil   -- 敌人生成系统实例
+local _experience  = nil   -- 经验升级系统实例
 
 -- 自动攻击配置
 local AUTO_ATTACK_INTERVAL = 0.5   -- 自动攻击间隔（秒）
@@ -29,6 +32,14 @@ local AUTO_ATTACK_RANGE    = 350   -- 自动锁定的最大距离（像素）
 
 local _attackTimer = 0             -- 攻击冷却计时器（秒）
 
+-- 升级提示浮窗状态
+local _levelUpNotice = {
+    active   = false,  -- 是否显示中
+    level    = 0,      -- 升级后的等级
+    timer    = 0,      -- 剩余显示时间（秒）
+    duration = 2.5,    -- 总显示时长（秒）
+}
+
 -- 进入游戏状态时调用，负责初始化所有局内数据
 function Game:enter()
     Timer.clear()
@@ -36,6 +47,7 @@ function Game:enter()
     -- 初始化列表
     _enemies     = {}
     _projectiles = {}
+    _pickups     = {}
     _attackTimer = 0
 
     -- 初始化玩家
@@ -48,6 +60,15 @@ function Game:enter()
     -- 初始化生成系统
     _spawner = Spawner.new(_enemies)
     _spawner:setTarget(_player)
+
+    -- 初始化经验系统，注册升级回调
+    _experience = Experience.new(_player)
+    _experience:onLevelUp(function(player, newLevel)
+        -- 触发屏幕升级提示浮窗（Phase 5 替换为完整奖励界面）
+        _levelUpNotice.active = true
+        _levelUpNotice.level  = newLevel
+        _levelUpNotice.timer  = _levelUpNotice.duration
+    end)
 end
 
 -- 退出游戏状态时调用
@@ -57,7 +78,9 @@ function Game:exit()
     _camera      = nil
     _enemies     = {}
     _projectiles = {}
+    _pickups     = {}
     _spawner     = nil
+    _experience  = nil
 end
 
 -- 每帧更新游戏逻辑
@@ -68,6 +91,17 @@ function Game:update(dt)
 
     -- 更新玩家
     _player:update(dt)
+
+    -- 更新升级提示倒计时
+    if _levelUpNotice.active then
+        _levelUpNotice.timer = _levelUpNotice.timer - dt
+        if _levelUpNotice.timer <= 0 then
+            _levelUpNotice.active = false
+        end
+    end
+
+    -- 更新经验系统（检测升级）
+    _experience:update(dt)
 
     -- 更新生成系统
     _spawner:update(dt)
@@ -82,15 +116,21 @@ function Game:update(dt)
         proj:update(dt)
     end
 
+    -- 更新所有掉落物（含吸附逻辑）
+    for _, pickup in ipairs(_pickups) do
+        pickup:update(dt, _player)
+    end
+
     -- 自动攻击
     Game._updateAutoAttack(dt)
 
-    -- 碰撞检测：子弹 vs 敌人
+    -- 碰撞检测：子弹 vs 敌人，获取击杀列表（含掉落物）
     local kills = Collision.projectilesVsEnemies(_projectiles, _enemies)
-    -- 发放击杀奖励
-    for _, enemy in ipairs(kills) do
-        _player:gainExp(enemy:getExpDrop())
-        _player:gainSouls(enemy:getSoulDrop())
+    for _, killData in ipairs(kills) do
+        -- 将掉落物加入场景
+        for _, pickup in ipairs(killData.pickups) do
+            table.insert(_pickups, pickup)
+        end
     end
 
     -- 碰撞检测：敌人 vs 玩家
@@ -106,6 +146,7 @@ function Game:update(dt)
     -- 清理死亡实体
     Collision.clearDead(_enemies)
     Collision.clearDead(_projectiles)
+    Collision.clearDead(_pickups)
 
     -- 更新摄像机
     _camera:update(dt)
@@ -128,26 +169,21 @@ function Game._updateAutoAttack(dt)
     _attackTimer = _attackTimer + dt
     if _attackTimer < AUTO_ATTACK_INTERVAL then return end
 
-    -- 寻找最近的敌人
     local nearest = Game._findNearestEnemy()
     if not nearest then return end
 
-    -- 重置攻击计时器
     _attackTimer = _attackTimer - AUTO_ATTACK_INTERVAL
 
-    -- 计算朝向目标的方向
     local dx, dy = MathUtils.normalize(
         nearest.x - _player.x,
         nearest.y - _player.y)
 
-    -- 创建投射物
     local proj = Projectile.new(
         _player.x, _player.y,
         dx, dy,
         AUTO_ATTACK_DAMAGE,
         AUTO_ATTACK_SPEED)
 
-    -- 传递玩家暴击率
     proj._critRate = _player.critRate
 
     table.insert(_projectiles, proj)
@@ -156,8 +192,8 @@ end
 -- 在所有敌人中寻找距离玩家最近且在范围内的目标
 -- @return 最近的 Enemy 实例，若无则返回 nil
 function Game._findNearestEnemy()
-    local nearest = nil      -- 最近的敌人
-    local minDist = AUTO_ATTACK_RANGE  -- 最大搜索范围
+    local nearest = nil
+    local minDist = AUTO_ATTACK_RANGE
 
     for _, enemy in ipairs(_enemies) do
         if not enemy._isDead then
@@ -183,6 +219,11 @@ function Game:draw()
 
     -- 背景网格
     Game._drawGrid()
+
+    -- 绘制所有掉落物（最底层）
+    for _, pickup in ipairs(_pickups) do
+        pickup:draw()
+    end
 
     -- 绘制所有敌人
     for _, enemy in ipairs(_enemies) do
@@ -249,7 +290,7 @@ function Game._drawHUD()
     love.graphics.setColor(0.2, 0.8, 0.4)
     love.graphics.rectangle("fill", 20, 42, 200 * _player:getExpProgress(), 10)
 
-    -- 等级、灵魂数量、敌人数量
+    -- 等级、灵魂、敌人数、掉落物数
     love.graphics.setColor(1, 1, 1)
     love.graphics.print("Lv." .. _player:getLevel(), 20, 58)
     love.graphics.print("灵魂: " .. _player:getSouls(), 20, 76)
@@ -259,30 +300,53 @@ function Game._drawHUD()
     love.graphics.setColor(0.5, 0.5, 0.5)
     love.graphics.print("WASD 移动  |  ESC 返回菜单", 20, 695)
 
+    -- 升级提示浮窗
+    if _levelUpNotice.active then
+        -- 计算淡出透明度（最后 0.8 秒开始淡出）
+        local alpha = 1.0
+        if _levelUpNotice.timer < 0.8 then
+            alpha = _levelUpNotice.timer / 0.8
+        end
+
+        -- 浮窗背景
+        love.graphics.setColor(0.1, 0.1, 0.1, 0.85 * alpha)
+        love.graphics.rectangle("fill", 490, 280, 300, 70, 8, 8)
+
+        -- 边框
+        love.graphics.setColor(1, 0.85, 0.1, alpha)
+        love.graphics.rectangle("line", 490, 280, 300, 70, 8, 8)
+
+        -- 标题
+        love.graphics.setColor(1, 0.85, 0.1, alpha)
+        love.graphics.printf("★  LEVEL UP  ★", 490, 292, 300, "center")
+
+        -- 等级文字
+        love.graphics.setColor(1, 1, 1, alpha)
+        love.graphics.printf(
+            "达到 Lv." .. _levelUpNotice.level,
+            490, 316, 300, "center")
+    end
+
     -- 调试日志面板（右上角）
     Game._drawDebugPanel()
 end
 
 -- 绘制调试日志面板
 function Game._drawDebugPanel()
-    local x   = 900   -- 面板左上角 X
-    local y   = 20    -- 面板左上角 Y
-    local lh  = 16    -- 行高
+    local x  = 900
+    local y  = 20
+    local lh = 16
 
-    -- 面板背景
     love.graphics.setColor(0, 0, 0, 0.6)
-    love.graphics.rectangle("fill", x - 8, y - 4, 370, 200)
+    love.graphics.rectangle("fill", x - 8, y - 4, 370, 220)
 
     love.graphics.setColor(0.4, 1, 0.4)
     love.graphics.print("[DEBUG]", x, y)
 
     love.graphics.setColor(1, 1, 1)
-    -- 玩家坐标
     love.graphics.print(string.format(
         "Pos:    (%.0f, %.0f)",
         _player.x, _player.y), x, y + lh * 1)
-
-    -- 玩家属性
     love.graphics.print(string.format(
         "HP:     %d / %d",
         _player.hp, _player.maxHp), x, y + lh * 2)
@@ -293,16 +357,12 @@ function Game._drawDebugPanel()
     love.graphics.print(string.format(
         "Souls:  %d  | PickupR: %.0f",
         _player:getSouls(), _player.pickupRadius), x, y + lh * 4)
-
-    -- 战斗数据
     love.graphics.print(string.format(
-        "Enemies: %d  | Projectiles: %d",
-        #_enemies, #_projectiles), x, y + lh * 5)
+        "Enemies: %d  | Projs: %d  | Pickups: %d",
+        #_enemies, #_projectiles, #_pickups), x, y + lh * 5)
     love.graphics.print(string.format(
         "AtkTimer: %.2f / %.2f",
         _attackTimer, AUTO_ATTACK_INTERVAL), x, y + lh * 6)
-
-    -- 生成系统数据
     love.graphics.print(string.format(
         "Spawner: interval=%.2f  batch=%d",
         _spawner._interval, _spawner._batchSize), x, y + lh * 7)
@@ -310,7 +370,6 @@ function Game._drawDebugPanel()
         "Elapsed: %.1f s",
         _spawner._elapsed), x, y + lh * 8)
 
-    -- FPS
     love.graphics.setColor(1, 1, 0.4)
     love.graphics.print(string.format(
         "FPS: %d", love.timer.getFPS()), x, y + lh * 9)

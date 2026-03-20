@@ -25,7 +25,7 @@ end
 -- 命中后投射物销毁，敌人扣血，收集击杀列表
 -- @param projectiles: 投射物列表
 -- @param enemies:     敌人列表
--- @return kills: 本次检测中被击杀的敌人列表
+-- @return kills: 本次检测中被击杀的敌人列表（含掉落物数据）
 function Collision.projectilesVsEnemies(projectiles, enemies)
     local kills = {}  -- 本次检测中被击杀的敌人
 
@@ -41,9 +41,13 @@ function Collision.projectilesVsEnemies(projectiles, enemies)
                         -- 投射物命中敌人
                         proj:onHit(enemy)
 
-                        -- 检测敌人是否被击杀
+                        -- 检测敌人是否被击杀，触发掉落
                         if enemy:isDead() then
-                            table.insert(kills, enemy)
+                            local pickups = enemy:onDeath()
+                            table.insert(kills, {
+                                enemy   = enemy,    -- 被击杀的敌人
+                                pickups = pickups,  -- 生成的掉落物列表
+                            })
                         end
 
                         break  -- 一颗子弹只打一个敌人

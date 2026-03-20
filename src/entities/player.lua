@@ -89,14 +89,10 @@ function Player:draw()
     end
 end
 
--- 玩家拾取经验值
+-- 玩家拾取经验值，只负责累加，升级检测交由 Experience 系统处理
 -- @param amount: 经验值数量
 function Player:gainExp(amount)
     self._exp = self._exp + math.floor(amount * self.expBonus)
-    -- 检测升级
-    while self._exp >= self._expToNext do
-        self:_levelUp()
-    end
 end
 
 -- 玩家拾取灵魂

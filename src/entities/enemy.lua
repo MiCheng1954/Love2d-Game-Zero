@@ -6,6 +6,7 @@
 
 local Entity      = require("src.entities.entity")
 local EnemyConfig = require("config.enemies")
+local Pickup      = require("src.entities.pickup")
 
 local Enemy = setmetatable({}, { __index = Entity })
 Enemy.__index = Enemy
@@ -137,10 +138,42 @@ function Enemy:_drawHpBar()
 end
 
 -- 死亡时回调，覆盖基类实现
--- @return 掉落数据表 {exp, souls}
+-- @return pickups: 死亡时生成的掉落物列表
 function Enemy:onDeath()
     self._isDead    = true
     self._isVisible = false
+
+    -- 生成掉落物列表
+    local pickups = {}
+
+    -- 经验掉落
+    if self._expDrop > 0 then
+        table.insert(pickups, Pickup.new(
+            self.x, self.y,
+            Pickup.TYPE.EXP,
+            self._expDrop))
+    end
+
+    -- 灵魂掉落
+    if self._soulDrop > 0 then
+        -- 灵魂掉落位置稍微偏移，避免和经验重叠
+        table.insert(pickups, Pickup.new(
+            self.x + math.random(-10, 10),
+            self.y + math.random(-10, 10),
+            Pickup.TYPE.SOUL,
+            self._soulDrop))
+    end
+
+    -- 小概率掉落事件触发器（10% 概率）
+    if math.random() < 0.10 then
+        table.insert(pickups, Pickup.new(
+            self.x + math.random(-15, 15),
+            self.y + math.random(-15, 15),
+            Pickup.TYPE.TRIGGER,
+            1))
+    end
+
+    return pickups
 end
 
 -- 获取击杀经验值掉落量
