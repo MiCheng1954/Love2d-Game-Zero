@@ -108,3 +108,14 @@ zero/
 **做了什么：** 修复 Windows 中文 IME 导致 WASD 无响应的 Bug
 
 - `main.lua`：在 `love.load()` 中添加 `love.keyboard.setTextInput(false)`，禁用文字输入模式，防止 IME 拦截游戏按键
+
+## [2026-03-20 16:59:09] Phase 3 — 敌人、战斗与自动攻击
+
+**做了什么：** 接入敌人系统、投射物、生成器、碰撞检测、自动攻击、死亡跳转、调试面板
+
+- `config/enemies.lua`：敌人配置数据（basic/fast/tank 三种类型），配置驱动便于扩展
+- `src/entities/enemy.lua`：敌人类，继承 Entity，追踪 AI、接触伤害冷却、HP 条绘制、死亡掉落
+- `src/entities/projectile.lua`：投射物类，飞行/最大距离/命中销毁/暴击，代码绘制含发光效果
+- `src/systems/spawner.lua`：生成系统，按时间动态调整难度（间隔/批次），实现慢快节奏曲线
+- `src/systems/collision.lua`：碰撞系统，圆形碰撞检测、子弹vs敌人、敌人vs玩家、死亡清理
+- `src/states/game.lua`：接入所有系统，自动锁定最近敌人攻击，死亡后跳转 gameover，右上角调试面板

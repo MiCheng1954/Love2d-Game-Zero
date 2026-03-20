@@ -71,7 +71,7 @@ function Player:draw()
     else
         -- 无资产时：代码绘制 fallback
         -- 身体（蓝色圆形）
-        love.graphics.setColor(PLAYER_COLOR[1], PLAYER_COLOR[2], PLAYER_COLOR[3])
+        love.graphics.setColor(PLAYER_COLOR)
         love.graphics.circle("fill", self.x, self.y, PLAYER_RADIUS)
 
         -- 边框（深蓝色）
