@@ -348,3 +348,98 @@ zero/
 ### 遗留 Bug（低优先级，Phase 7 前处理）
 - **Bug #14**：背包中武器等级标签统一显示在锚点格左上角，cannon（L形）等非矩形武器的等级标签可能被其他格遮挡，需调整到更醒目的位置
 
+---
+
+## [2026-03-21] fix: Bug #14 — 武器等级标签位置修正
+
+**做了什么：** 将武器等级标签从锚点格左上角改为显示在武器视觉中心
+
+- `bagUI.lua`：计算武器所有格子的中心坐标，等级标签绘制在视觉中心位置，非矩形武器（cannon 等）不再被遮挡
+
+---
+
+## [2026-03-21] Phase 7 — 相邻增益 & 初版羁绊系统
+
+**做了什么：** 实现武器相邻增益与基于武器组合的初版羁绊系统
+
+### 相邻增益系统
+- **新建 `src/systems/adjacency.lua`**：双向相邻增益计算，共享边的任意两把武器互相提供各自的 `adjacencyBonus`
+- **触发时机**：每次 `bag:place()` / `bag:remove()` 末尾自动重算
+- **缓存字段**：`weapon._adjBonus = { damage, attackSpeed, range, bulletSpeed }`
+- 6 把武器各自的 adjacencyBonus 主题：pistol(射速)、shotgun(伤害)、smg(射速)、sniper(射程)、cannon(伤害)、laser(射速+射程)
+
+### 初版羁绊系统（`config/synergies.lua` + `src/systems/synergy.lua`）
+- **触发规则**：背包中同时持有 `requires` 列出的所有武器（不限位置）激活羁绊
+- **效果字段**：写入 `weapon._synergyBonus`，与 adjBonus 叠加
+- **3 个初版羁绊**：`rapid_duo`(pistol+smg)、`heavy_strike`(shotgun+cannon)、`precision_pair`(sniper+laser)
+
+### weapon 新增 effective 方法族
+- `getEffectiveDamage(playerAttack)`、`getEffectiveAttackSpeed()`、`getEffectiveRange()`、`getEffectiveBulletSpeed()`
+- `tickAttack(dt)` 使用 `getEffectiveAttackSpeed()` 计算实际攻击间隔
+
+---
+
+## [2026-03-21] Phase 7.1 — 武器融合 & 单元测试框架
+
+**做了什么：** 实现玩家主动拖拽触发的武器融合系统，并搭建自动化单元测试基础设施
+
+### 武器融合
+- **新建 `config/fusion.lua`**：3条融合配方（dual_pistol / siege_cannon / railgun），无序匹配
+- **新建 `src/systems/fusion.lua`**：`findRecipe()` 查询配方，`apply()` 消耗原材料生成结果武器
+- **`bagUI.lua` 新增 `MODE_FUSION`**：PLACE 模式下放置目标格冲突时检测融合，匹配则进入融合预览界面
+  - 显示：原材料 A + B → 结果武器（名称/属性/形状/格子尺寸）
+  - 操作：Enter 确认融合 / ESC 取消（A 放回原位）
+- `config/weapons.lua` 新增 3 把融合产物配置（`dual_pistol`/`siege_cannon`/`railgun`）
+
+### 单元测试框架（`tests/` 目录）
+- **运行方式**：`python tests/run_lupa.py`（lupa Python 绑定，无需安装 busted）
+- **`tests/mock/love.lua`**：Love2D API 完整 stub，屏蔽图形依赖
+- **`tests/helper.lua`**：自实现 describe/it/before_each/assert 框架
+- 初版测试覆盖（71个用例）：
+  - `test_weapon.lua`：23 个（effective 方法族、tickAttack、rotate）
+  - `test_bag.lua`：22 个（canPlace、place、remove、expand、getAllWeapons）
+  - `test_adjacency.lua`：8 个（相邻增益计算）
+  - `test_synergy.lua`：8 个（初版羁绊激活/移除）
+  - `test_fusion.lua`：11 个（findRecipe 无序匹配、apply 消耗生成）
+
+---
+
+## [2026-03-21] Phase 7.2 — Tag 羁绊系统重设计 & Bug #15–#19 修复
+
+**做了什么：** 将羁绊系统从「武器组合触发」完整重设计为 Tag 驱动的全局被动技能体系；修复 5 个 Bug；合并开发者反馈面板；新增 6 把基础武器
+
+### Tag 羁绊系统（核心重设计）
+- **`config/synergies.lua` 完整重写**：6 种流派 tag（速射/精准/重型/爆炸/科技/游击），每种 tag 两档（×2 / ×3）共 12 个羁绊档位
+- **`src/systems/synergy.lua` 完整重写**：tag 计数（跳过 `isFused` 武器）→ 找最高满足档位 → 累加 `_playerSynergyBonus`
+- **`bag._playerSynergyBonus`**：新增全局加成字段（speed/damage/critChance/critMult/maxHP/bulletSpeed/pickupRange/expMult）
+- **`bag._tagCounts`**：新增 tag 计数字典，用于 UI 进度条显示
+- **`game.lua`** 每帧读取 psb 应用到：移速、暴击率、暴击倍率、伤害、弹速、拾取范围、经验倍率、最大血量（增量缓存避免每帧重复叠加）
+- **羁绊效果列举**：速射T1(+25速)→T2(+50速+8伤)；精准T1(+8%暴击)→T2(+15%暴击+40%倍率)；重型T1(+15伤)→T2(+30伤+30血)；爆炸T1(+80弹速)→T2(+160弹速+10伤)；科技T1(+60拾取)→T2(+120拾取+25%经验)；游击T1(+25血)→T2(+50血+20速)
+
+### 新增 6 把基础武器
+| 武器 | Tags | 格子 |
+|------|------|------|
+| burst_pistol（爆发手枪） | 速射/精准 | 1×1 |
+| grenade_launcher（榴弹发射器） | 爆炸/重型 | 1×2 |
+| double_barrel（双管猎枪） | 重型/游击 | 1×2 |
+| gatling（加特林） | 速射/重型 | 2×2 |
+| plasma_pistol（等离子手枪） | 科技/爆炸 | 1×1 |
+| rail_rifle（磁轨步枪） | 精准/科技 | 1×3 |
+
+### Bug 修复
+- **Bug #15**：激活羁绊未显示效果描述 → `_drawDetail()` 在羁绊名下方追加 descKey 文本
+- **Bug #16**：融合预览未显示结果武器 Tags → `MODE_FUSION` 新增 tags 展示行
+- **Bug #17**：武器详情无 Tag 展示 → `_drawDetail()` 新增 tag 进度条区块（激活/进行中/未达到三色）
+- **Bug #18**：独立羁绊面板布局混乱、信息重复 → 羁绊信息整合进武器详情面板，`_drawSynergies()` 改为 no-op
+- **Bug #19**：融合预览显示错误武器尺寸（恒为2列）→ 旧 `#shape[1]` 恒为2，改为遍历所有格子取 maxR/maxC 后+1；三把融合武器均受影响
+
+### 开发者反馈面板合并（devReport）
+- **新建 `src/states/devReport.lua`**：三阶段输入（描述 → 优先级 → Bug/需求 类型），取代原 bugReport + featureRequest
+- **F12 统一入口**：main.lua 中 F12 改为推送 devReport，移除 F11 独立入口
+- DONE 阶段边框颜色随类型变化（红=Bug，蓝=需求），1.5 秒后自动关闭
+
+### 单元测试更新
+- **`test_synergy.lua` 完整重写**：16 个用例，覆盖 tag 计数 / T1 激活 / T2 激活与降级 / psb 累加 / isFused 跳过
+- **`test_fusion.lua` 新增 Bug#19 专项**：6 个用例，验证三把融合武器正确尺寸，并反向确认旧算法确实有误
+- **最终测试成绩：86 passed, 0 failed**
+
