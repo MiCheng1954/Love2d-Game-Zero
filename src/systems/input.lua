@@ -19,6 +19,10 @@ local _actions = {
     cancel       = false,  -- 取消（ESC）
     rotateWeapon = false,  -- 旋转武器（背包放置模式 R 键）
     pause        = false,  -- 暂停/继续（P 键）
+    skill1       = false,  -- 主动技能槽1（空格）— Phase 8
+    skill2       = false,  -- 主动技能槽2（Q）— Phase 8
+    skill3       = false,  -- 主动技能槽3（E）— Phase 8
+    skill4       = false,  -- 主动技能槽4（F）— Phase 8
 }
 
 -- 上一帧的输入状态（用于检测单次按下）
@@ -39,6 +43,11 @@ local _keyboardMap = {
     escape     = "cancel",
     r          = "rotateWeapon",
     p          = "pause",
+    -- Phase 8：技能快捷键
+    space      = "skill1",
+    q          = "skill2",
+    e          = "skill3",
+    f          = "skill4",
 }
 
 -- 每帧更新输入状态，需在 love.update() 中调用

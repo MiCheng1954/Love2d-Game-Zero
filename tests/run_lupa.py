@@ -148,6 +148,7 @@ TEST_FILES = [
     "tests/systems/test_adjacency.lua",
     "tests/systems/test_synergy.lua",
     "tests/systems/test_fusion.lua",
+    "tests/systems/test_skillManager.lua",   # Phase 8
 ]
 
 total_pass = 0

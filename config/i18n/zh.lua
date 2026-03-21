@@ -14,6 +14,7 @@ return {
     ["hud.hint"]         = "WASD 移动  |  TAB 背包  |  P 暂停  |  ESC 返回菜单",
     ["hud.paused"]       = "⏸  已暂停",
     ["hud.pause_hint"]   = "按 P 继续游戏",
+    ["hud.skills"]       = "[技能]",  -- Phase 8
 
     -- 升级界面
     ["upgrade.title"]    = "★  LEVEL UP  ★",
@@ -61,6 +62,9 @@ return {
     ["opt.skill_placeholder_1.label"]= "技能（待实装）",
     ["opt.skill_placeholder_2.label"]= "被动技能（待实装）",
 
+    -- Phase 8：技能大类升级选项
+    ["opt.skill_get.label"]  = "获得/升级技能",
+
     -- 升级子选项 desc
     ["opt.weapon_new_basic.desc"]    = "获得一把随机武器加入背包",
     ["opt.weapon_upgrade.desc"]      = "随机强化一把已装备武器的攻击力",
@@ -73,6 +77,9 @@ return {
     ["opt.stat_exp.desc"]            = "经验获取倍率 +20%",
     ["opt.skill_placeholder_1.desc"] = "Phase 8 接入技能系统后实装",
     ["opt.skill_placeholder_2.desc"] = "Phase 8 接入技能系统后实装",
+
+    -- Phase 8：技能大类升级选项描述
+    ["opt.skill_get.desc"]   = "从技能池随机抽取3个技能供选择",
 
     -- Debug 面板
     ["debug.title"]      = "[DEBUG]",
@@ -191,4 +198,81 @@ return {
     ["syn.游击.t2.desc"] = "游击武器 x2：最大生命 +25",
     ["syn.游击.t3.name"] = "游击突袭",
     ["syn.游击.t3.desc"] = "游击武器 x3：最大生命 +50，移动速度 +20",
+
+    -- ============================================================
+    -- Phase 8：技能系统
+    -- ============================================================
+
+    -- 技能选择界面
+    ["skill_select.title"] = "★  获得技能  ★",
+    ["skill_select.hint"]  = "↑↓ 移动   Enter 确认   ESC 取消",
+    ["skill_select.empty"] = "（暂无可选技能）",
+
+    -- Phase 8：技能 Tag 显示名
+    ["tag.skill.防御"] = "防御",
+    ["tag.skill.爆发"] = "爆发",
+    ["tag.skill.辅助"] = "辅助",
+    ["tag.skill.精准"] = "精准",
+
+    -- Phase 8：技能名称
+    ["skill.dash.name"]         = "冲刺",
+    ["skill.time_slow.name"]    = "时间减缓",
+    ["skill.bomb_throw.name"]   = "投掷炸弹",
+    ["skill.blink.name"]        = "幻影闪现",
+    ["skill.battle_cry.name"]   = "战吼",
+    ["skill.mana_shield.name"]  = "魔法护罩",
+    ["skill.emp_burst.name"]    = "电磁脉冲",
+    ["skill.heal_pulse.name"]   = "脉冲治疗",
+    ["skill.ammo_supply.name"]  = "弹药补给",
+    ["skill.explosion.name"]    = "爆炸波",
+    ["skill.soul_drain.name"]   = "灵魂汲取",
+    ["skill.counter_shot.name"] = "反击弹",
+    ["skill.rage.name"]         = "狂怒",
+    ["skill.thorns.name"]       = "荆棘反弹",
+    ["skill.iron_body.name"]    = "铁甲之躯",
+    ["skill.swift_feet.name"]   = "疾步",
+    ["skill.sharpshooter.name"] = "神射手",
+    ["skill.energy_field.name"] = "能量领域",
+    ["skill.iron_will.name"]    = "钢铁意志",
+    ["skill.overload.name"]     = "超载",
+
+    -- Phase 8：技能描述
+    ["skill.dash.desc"]         = "向移动方向冲刺 200px，按空格触发，CD 8s",
+    ["skill.time_slow.desc"]    = "全屏敌人减速 80% 持续 3s，按 Q 触发，CD 20s",
+    ["skill.bomb_throw.desc"]   = "前方 200px 爆炸，150px 内 80 伤害，按 E 触发，CD 12s",
+    ["skill.blink.desc"]        = "瞬移到最近敌人背后造成 40 伤害，按 Q 触发，CD 15s",
+    ["skill.battle_cry.desc"]   = "攻击力×2 持续 10s，附近敌人停滞 0.5s，按 F 触发，CD 25s",
+    ["skill.mana_shield.desc"]  = "护盾吸收下一次伤害（持续 8s），按 F 触发，CD 18s",
+    ["skill.emp_burst.desc"]    = "每 12s 自动触发，全屏敌人减速 50% 持续 3s",
+    ["skill.heal_pulse.desc"]   = "每 15s 自动治疗，恢复 max(8, maxHP×5%)",
+    ["skill.ammo_supply.desc"]  = "每 10s 标记弹药强化，下次攻击伤害×2",
+    ["skill.explosion.desc"]    = "每 5 击杀触发，玩家周围 150px 内造成 60 伤害",
+    ["skill.soul_drain.desc"]   = "每 3 击杀触发，恢复 5HP，临时扩大吸附范围",
+    ["skill.counter_shot.desc"] = "受伤后向最近敌人发射 3 颗 30 伤害弹，CD 10s",
+    ["skill.rage.desc"]         = "受伤后攻击力+50% 持续 5s，CD 20s",
+    ["skill.thorns.desc"]       = "受伤后将 50% 伤害反弹给攻击者，CD 8s",
+    ["skill.iron_body.desc"]    = "持有即生效：最大生命值 +50",
+    ["skill.swift_feet.desc"]   = "持有即生效：移动速度 +40",
+    ["skill.sharpshooter.desc"] = "持有即生效：暴击率 +10%，暴击伤害 +30%",
+    ["skill.energy_field.desc"] = "持有即生效：拾取范围 +80，经验获取 +20%",
+    ["skill.iron_will.desc"]    = "持有即生效：受到伤害减少 10%",
+    ["skill.overload.desc"]     = "【角色专属】背包所有武器射速×2 持续 4s，CD 30s",
+
+    -- Phase 8：技能羁绊名称与描述
+    ["syn.skill.防御.t2.name"] = "铜墙铁壁",
+    ["syn.skill.防御.t2.desc"] = "防御技能 x2：受到伤害减少 10%",
+    ["syn.skill.防御.t3.name"] = "坚不可摧",
+    ["syn.skill.防御.t3.desc"] = "防御技能 x3：受到伤害减少 20%，最大生命 +30",
+    ["syn.skill.爆发.t2.name"] = "战斗狂热",
+    ["syn.skill.爆发.t2.desc"] = "爆发技能 x2：主动技能冷却缩短 20%",
+    ["syn.skill.爆发.t3.name"] = "无尽爆发",
+    ["syn.skill.爆发.t3.desc"] = "爆发技能 x3：主动技能冷却缩短 35%，攻击力 +10",
+    ["syn.skill.辅助.t2.name"] = "知识汲取",
+    ["syn.skill.辅助.t2.desc"] = "辅助技能 x2：经验获取 +30%",
+    ["syn.skill.辅助.t3.name"] = "智慧领域",
+    ["syn.skill.辅助.t3.desc"] = "辅助技能 x3：经验获取 +50%，拾取范围 +60",
+    ["syn.skill.精准.t2.name"] = "猎杀直觉",
+    ["syn.skill.精准.t2.desc"] = "精准技能 x2：暴击率 +8%",
+    ["syn.skill.精准.t3.name"] = "致命精准",
+    ["syn.skill.精准.t3.desc"] = "精准技能 x3：暴击率 +15%，暴击伤害 +40%",
 }

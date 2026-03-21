@@ -78,8 +78,17 @@ end
 function Entity:takeDamage(amount, isCrit)
     if self._isDead then return 0 end
 
-    -- 防御力减免（最低造成 1 点伤害）
-    local actual = math.max(1, amount - self.defense)
+    -- Phase 8：defense 支持两种语义：
+    --   数值型（旧）：固定减免点数（如 defense=5 → 扣减5点）
+    --   0~1 小数型（新，用于玩家）：百分比减免（如 defense=0.1 → 减免10%）
+    local actual
+    if (self.defense or 0) > 0 and (self.defense or 0) < 1 then
+        -- 百分比减免（0~1）
+        actual = math.max(1, math.floor(amount * (1 - self.defense)))
+    else
+        -- 固定点数减免（旧逻辑兼容）
+        actual = math.max(1, amount - (self.defense or 0))
+    end
 
     -- 暴击伤害加成
     if isCrit then

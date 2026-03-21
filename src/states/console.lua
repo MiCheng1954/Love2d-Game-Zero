@@ -6,6 +6,7 @@
 
 local Font = require("src.utils.font")
 local WeaponConfig = require("config.weapons")
+local SkillConfig  = require("config.skills")
 
 local Console = {}
 
@@ -19,6 +20,8 @@ local HELP_LINES = {
     "exp <n>          - 增加 n 点经验",
     "kill             - 秒杀所有敌人",
     "weapon <id>      - 获得指定武器放入背包（如: weapon pistol）",
+    "skill <id>       - 获得/升级技能（如: skill dash）",
+    "skill list       - 列出所有可用技能 id",
     "set <attr> <val> - 修改玩家属性（如: set speed 300）",
     "  可用属性: speed attack maxhp hp souls critRate critDamage",
     "             expBonus soulBonus pickupRadius defense",
@@ -265,6 +268,37 @@ function Console:_execute(cmd)
                 self:_addLine("已获得武器: " .. id .. " (Lv1)")
             else
                 self:_addLine("背包已满，无法放入 " .. id)
+            end
+        end
+
+    elseif verb == "skill" then
+        -- skill list / skill <id>
+        local subCmd = parts[2] and parts[2]:lower() or ""
+        if subCmd == "list" then
+            local ids = {}
+            for k in pairs(SkillConfig) do table.insert(ids, k) end
+            table.sort(ids)
+            self:_addLine("可用技能: " .. table.concat(ids, ", "))
+        elseif subCmd == "" then
+            self:_addLine("用法: skill <id>  或  skill list")
+        else
+            if not SkillConfig[subCmd] then
+                self:_addLine("未知技能 ID: " .. subCmd)
+            elseif not self._player then
+                self:_addLine("无玩家引用")
+            else
+                local sm = self._player:getSkillManager()
+                local ok = sm:add(subCmd, self._player)
+                if ok then
+                    self:_addLine("已获得/升级技能: " .. subCmd .. " Lv" .. sm:getLevel(subCmd))
+                else
+                    local cfg = SkillConfig[subCmd]
+                    if cfg and cfg.characterId and self._player.characterId ~= cfg.characterId then
+                        self:_addLine("技能 " .. subCmd .. " 仅限角色 [" .. cfg.characterId .. "] 使用")
+                    else
+                        self:_addLine("技能 " .. subCmd .. " 已满级")
+                    end
+                end
             end
         end
 

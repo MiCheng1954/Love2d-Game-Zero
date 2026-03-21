@@ -4,10 +4,11 @@
     负责处理玩家的移动、渲染以及状态管理
 ]]
 
-local Entity = require("src.entities.entity")
-local Input  = require("src.systems.input")
-local Bag    = require("src.systems.bag")
-local Weapon = require("src.entities.weapon")
+local Entity       = require("src.entities.entity")
+local Input        = require("src.systems.input")
+local Bag          = require("src.systems.bag")
+local Weapon       = require("src.entities.weapon")
+local SkillManager = require("src.systems.skillManager")
 
 local Player = setmetatable({}, { __index = Entity })
 Player.__index = Player
@@ -37,9 +38,21 @@ function Player.new(x, y)
     self._souls       = 0     -- 当前持有灵魂数量
     self._revives     = 1     -- 剩余复活次数
 
+    -- 战斗属性（Phase 8 补全）
+    self.attack       = 10    -- 基础攻击力
+    self.critRate     = 0.05  -- 基础暴击率
+    self.critDamage   = 1.5   -- 基础暴击倍率
+    self.defense      = 0     -- 伤害减免比（0~1，Phase 8 新增）
+
+    -- 角色身份（Phase 8 角色专属技能过滤用）
+    self.characterId  = "default"
+
     -- 移动状态
     self._dx          = 0     -- 当前帧水平移动方向
     self._dy          = 0     -- 当前帧垂直移动方向
+
+    -- 技能管理器（Phase 8）
+    self._skillManager = SkillManager.new()
 
     -- 背包（初始 2×2，武器放入即视为装备）
     Weapon.resetIdCounter()
@@ -167,6 +180,12 @@ end
 -- @return Bag 实例
 function Player:getBag()
     return self._bag
+end
+
+-- 获取技能管理器实例（Phase 8）
+-- @return SkillManager 实例
+function Player:getSkillManager()
+    return self._skillManager
 end
 
 return Player

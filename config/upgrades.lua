@@ -202,16 +202,92 @@ local UpgradeConfig = {
     -- 技能相关子选项
     skill = {
         {
-            id       = "skill_placeholder_1",
-            labelKey = "opt.skill_placeholder_1.label",
-            descKey  = "opt.skill_placeholder_1.desc",
-            apply    = function(player) end,
-        },
-        {
-            id       = "skill_placeholder_2",
-            labelKey = "opt.skill_placeholder_2.label",
-            descKey  = "opt.skill_placeholder_2.desc",
-            apply    = function(player) end,
+            id       = "skill_get",
+            labelKey = "opt.skill_get.label",
+            descKey  = "opt.skill_get.desc",
+            -- canShow：技能池中有可获得/可升级的技能时才显示
+            canShow  = function(player)
+                local SkillConfig = require("config.skills")
+                local sm = player:getSkillManager()
+                for id, cfg in pairs(SkillConfig) do
+                    -- 角色匹配检查
+                    if not cfg.characterId or player.characterId == cfg.characterId then
+                        local lv = sm:getLevel(id)
+                        if lv < (cfg.maxLevel or 1) then
+                            return true
+                        end
+                    end
+                end
+                return false
+            end,
+            apply = function(player, ctx)
+                local SkillConfig  = require("config.skills")
+                local sm           = player:getSkillManager()
+                local Log          = require("src.utils.log")
+
+                -- 构建候选池：优先未拥有，其次可升级，满足角色限制
+                local notOwned = {}
+                local upgradeable = {}
+                for id, cfg in pairs(SkillConfig) do
+                    if not cfg.characterId or player.characterId == cfg.characterId then
+                        local lv = sm:getLevel(id)
+                        if lv == 0 then
+                            table.insert(notOwned, id)
+                        elseif lv < (cfg.maxLevel or 1) then
+                            table.insert(upgradeable, id)
+                        end
+                    end
+                end
+
+                -- 随机打乱
+                local function shuffle(t)
+                    for i = #t, 2, -1 do
+                        local j = math.random(i)
+                        t[i], t[j] = t[j], t[i]
+                    end
+                end
+                shuffle(notOwned)
+                shuffle(upgradeable)
+
+                -- 合并候选：最多取 3 个
+                local candidates = {}
+                for _, id in ipairs(notOwned) do
+                    if #candidates >= 3 then break end
+                    table.insert(candidates, id)
+                end
+                for _, id in ipairs(upgradeable) do
+                    if #candidates >= 3 then break end
+                    table.insert(candidates, id)
+                end
+
+                if #candidates == 0 then
+                    Log.info("技能池已空，无可选技能")
+                    return  -- 直接返回，upgrade.lua 会调用 onDone
+                end
+
+                -- 推入技能选择 UI
+                if ctx and ctx.onWeaponDrop then
+                    -- 复用 deferred 机制：告知 upgrade.lua 流程由 skillSelectUI 接管
+                    local StateManager = require("src.states.stateManager")
+                    StateManager.push("skillSelectUI", {
+                        player     = player,
+                        candidates = candidates,
+                        onSelect   = function(skillId)
+                            local ok = sm:add(skillId, player)
+                            if ok then
+                                Log.info("获得/升级技能: " .. skillId .. " Lv" .. sm:getLevel(skillId))
+                            end
+                            StateManager.pop()           -- pop skillSelectUI
+                            if ctx.onDone then ctx.onDone() end  -- pop upgrade
+                        end,
+                        onCancel = function()
+                            StateManager.pop()           -- pop skillSelectUI
+                            if ctx.onDone then ctx.onDone() end
+                        end,
+                    })
+                    return true   -- deferred
+                end
+            end,
         },
     },
 }

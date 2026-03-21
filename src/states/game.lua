@@ -12,6 +12,7 @@ local Camera     = require("src.systems.camera")
 local Collision  = require("src.systems.collision")
 local Spawner    = require("src.systems.spawner")
 local Experience = require("src.systems.experience")
+local SkillSynergy = require("src.systems.skillSynergy")
 local Player     = require("src.entities.player")
 local Projectile = require("src.entities.projectile")
 local Weapon     = require("src.entities.weapon")
@@ -123,8 +124,21 @@ function Game:update(dt)
     -- Phase 7.2：读取 playerSynergyBonus，应用到玩家全局属性
     local bag = _player:getBag()
     local psb = bag._playerSynergyBonus or {}
+
+    -- Phase 8：纯被动技能每帧重新累加到临时 psb 副本
+    -- 注意：技能 psb 是每帧临时叠加，不持久存储到 bag._playerSynergyBonus
+    local sm = _player:getSkillManager()
+    local skillPsb = {}
+    sm:recalcPassive(skillPsb)
+    local skillActiveSynergies = SkillSynergy.recalculate(sm, skillPsb)
+
+    -- 合并技能 psb 到武器 psb（逻辑层统一用 mergedPsb）
+    local mergedPsb = {}
+    for k, v in pairs(psb)      do mergedPsb[k] = v end
+    for k, v in pairs(skillPsb) do mergedPsb[k] = (mergedPsb[k] or 0) + v end
+
     -- maxHP 加成：检测变化并同步当前 HP（避免每帧重复叠加，用 _psbMaxHP 缓存上次值）
-    local psbMaxHP = psb.maxHP or 0
+    local psbMaxHP = mergedPsb.maxHP or 0
     if psbMaxHP ~= (_player._psbMaxHPLast or 0) then
         local delta = psbMaxHP - (_player._psbMaxHPLast or 0)
         _player.maxHp = _player.maxHp + delta
@@ -132,22 +146,35 @@ function Game:update(dt)
         _player._psbMaxHPLast = psbMaxHP
     end
     -- pickupRange 加成：同样用缓存避免重复叠加
-    local psbPickup = psb.pickupRange or 0
+    local psbPickup = mergedPsb.pickupRange or 0
     if psbPickup ~= (_player._psbPickupLast or 0) then
         local delta = psbPickup - (_player._psbPickupLast or 0)
         _player.pickupRadius = _player.pickupRadius + delta
         _player._psbPickupLast = psbPickup
     end
     -- expMult 加成：同样用缓存（+25 = +0.25）
-    local psbExpMult = (psb.expMult or 0) / 100
+    local psbExpMult = (mergedPsb.expMult or 0) / 100
     if psbExpMult ~= (_player._psbExpMultLast or 0) then
         local delta = psbExpMult - (_player._psbExpMultLast or 0)
         _player.expBonus = _player.expBonus + delta
         _player._psbExpMultLast = psbExpMult
     end
+    -- Phase 8：defense 加成（百分比，0~1）
+    -- 直接每帧写入（不累加到基础值，避免叠加），覆盖 entity 基础 defense=0
+    _player.defense = math.min(0.9, (mergedPsb.defense or 0))
 
-    -- 更新玩家（传入 psb.speed 作为额外速度加成）
-    _player:update(dt, psb.speed or 0)
+    -- 更新玩家（传入 mergedPsb.speed 作为额外速度加成）
+    _player:update(dt, mergedPsb.speed or 0)
+
+    -- Phase 8：更新技能系统（定时触发、持续 buff 衰减等）
+    local skillCtx = {
+        dx          = _player._dx,
+        dy          = _player._dy,
+        enemies     = _enemies,
+        projectiles = _projectiles,
+        bag         = _player:getBag(),
+    }
+    sm:update(dt, _player, skillCtx, mergedPsb.cdReduce)
 
     -- 更新升级提示倒计时
     if _levelUpNotice.active then
@@ -188,10 +215,15 @@ function Game:update(dt)
         for _, pickup in ipairs(killData.pickups) do
             table.insert(_pickups, pickup)
         end
+        -- Phase 8：通知技能系统击杀事件
+        sm:onKill(_player, killData.enemy, skillCtx)
     end
 
-    -- 碰撞检测：敌人 vs 玩家
-    Collision.enemiesVsPlayer(_enemies, _player)
+    -- 碰撞检测：敌人 vs 玩家（Phase 8：收集伤害量并通知 onHit）
+    local playerDmgTaken = Collision.enemiesVsPlayer(_enemies, _player)
+    if playerDmgTaken and playerDmgTaken > 0 then
+        sm:onHit(_player, playerDmgTaken, skillCtx)
+    end
 
     -- 检测玩家死亡（Phase 10 接入传承系统，暂时直接跳转结算）
     if _player:isDead() then
@@ -282,9 +314,25 @@ function Game._updateAutoAttack(dt)
     local weapons = bag:getAllWeapons()
     local psb     = bag._playerSynergyBonus or {}  -- Phase 7.2：玩家全局羁绊加成
 
+    -- Phase 8：合并技能被动加成
+    local sm = _player:getSkillManager()
+    local skillPsb = {}
+    sm:recalcPassive(skillPsb)
+    local skillActiveSyn = SkillSynergy.recalculate(sm, skillPsb)
+    local mergedPsb = {}
+    for k, v in pairs(psb)      do mergedPsb[k] = v end
+    for k, v in pairs(skillPsb) do mergedPsb[k] = (mergedPsb[k] or 0) + v end
+
     -- Phase 7.2：暴击率与暴击倍率加成（critChance 为百分比，需转换为小数）
-    local effectiveCritRate   = _player.critRate   + (psb.critChance or 0) / 100
-    local effectiveCritDamage = _player.critDamage + (psb.critMult   or 0) / 100
+    local effectiveCritRate   = _player.critRate   + (mergedPsb.critChance or 0) / 100
+    local effectiveCritDamage = _player.critDamage + (mergedPsb.critMult   or 0) / 100
+
+    -- Phase 8：弹药强化加成
+    local ammoMultiplier = 1
+    if _player._ammoSupplyStacks and _player._ammoSupplyStacks > 0 then
+        ammoMultiplier = 2
+        _player._ammoSupplyStacks = _player._ammoSupplyStacks - 1
+    end
 
     if #weapons > 0 then
         -- 每把武器独立计时、独立索敌、独立发射
@@ -298,11 +346,12 @@ function Game._updateAutoAttack(dt)
                             target.x - _player.x,
                             target.y - _player.y)
                         -- Phase 7.2：伤害加上全局攻击加成；弹速加上全局弹速加成
+                        local baseDmg = weapon:getEffectiveDamage(_player.attack + (mergedPsb.damage or 0))
                         local proj = Projectile.new(
                             _player.x, _player.y,
                             dx, dy,
-                            weapon:getEffectiveDamage(_player.attack + (psb.damage or 0)),
-                            weapon:getEffectiveBulletSpeed(psb.bulletSpeed or 0))
+                            baseDmg * ammoMultiplier,
+                            weapon:getEffectiveBulletSpeed(mergedPsb.bulletSpeed or 0))
                         proj._critRate   = effectiveCritRate
                         proj._critDamage = effectiveCritDamage
                         table.insert(_projectiles, proj)
@@ -323,7 +372,7 @@ function Game._updateAutoAttack(dt)
                 local proj = Projectile.new(
                     _player.x, _player.y,
                     dx, dy,
-                    FALLBACK_ATTACK_DAMAGE,
+                    FALLBACK_ATTACK_DAMAGE * ammoMultiplier,
                     FALLBACK_ATTACK_SPEED)
                 proj._critRate   = effectiveCritRate
                 proj._critDamage = effectiveCritDamage
@@ -442,9 +491,18 @@ function Game._drawHUD()
     love.graphics.print(T("hud.souls") .. ": " .. _player:getSouls(), 20, 76)
     love.graphics.print(T("hud.enemies") .. ": " .. #_enemies, 20, 94)
 
-    -- 需求4：右上角显示当前激活的羁绊
+    -- 需求4：右上角显示当前激活的羁绊（武器羁绊 + 技能羁绊）
     local activeSynergies = _player:getBag()._activeSynergies or {}
-    if #activeSynergies > 0 then
+    -- Phase 8：技能羁绊
+    local sm = _player:getSkillManager()
+    local skillPsb2 = {}
+    sm:recalcPassive(skillPsb2)
+    local skillActiveSynHUD = SkillSynergy.recalculate(sm, skillPsb2)
+    local allSynergies = {}
+    for _, s in ipairs(activeSynergies)    do table.insert(allSynergies, s) end
+    for _, s in ipairs(skillActiveSynHUD)  do table.insert(allSynergies, s) end
+
+    if #allSynergies > 0 then
         Font.set(13)
         local sx = 1280 - 20
         local sy = 20
@@ -452,7 +510,7 @@ function Game._drawHUD()
         love.graphics.setColor(1.0, 0.85, 0.3)
         love.graphics.printf("[羁绊]", sx - 200, sy, 200, "right")
         sy = sy + lh
-        for _, syn in ipairs(activeSynergies) do
+        for _, syn in ipairs(allSynergies) do
             love.graphics.setColor(0.4, 1.0, 0.7)
             love.graphics.printf("+ " .. T(syn.nameKey), sx - 200, sy, 200, "right")
             sy = sy + lh
@@ -462,6 +520,9 @@ function Game._drawHUD()
     -- 操作提示
     love.graphics.setColor(0.5, 0.5, 0.5)
     love.graphics.print(T("hud.hint"), 20, 695)
+
+    -- Phase 8：左下角技能栏
+    Game._drawSkillBar()
 
     -- 暂停遮罩
     if _paused then
@@ -505,6 +566,92 @@ function Game._drawHUD()
 
     -- 调试日志面板（右上角）
     Game._drawDebugPanel()
+end
+
+-- Phase 8：绘制左下角技能栏
+function Game._drawSkillBar()
+    if not _player then return end
+    local sm = _player:getSkillManager()
+    local skillList = sm:getSortedList()
+    if #skillList == 0 then return end
+
+    -- 只显示主动技能和 passive_onhit（有 CD 概念的）
+    local shown = {}
+    for _, entry in ipairs(skillList) do
+        local cfg = entry.inst.cfg
+        if cfg.type == "active" or cfg.type == "passive_onhit" then
+            table.insert(shown, entry)
+        end
+    end
+    if #shown == 0 then return end
+
+    local SkillConfig = require("config.skills")
+    local bag = _player:getBag()
+    local psb = bag._playerSynergyBonus or {}
+    local skillPsb = {}
+    sm:recalcPassive(skillPsb)
+    SkillSynergy.recalculate(sm, skillPsb)
+    local cdReduce = (psb.cdReduce or 0) + (skillPsb.cdReduce or 0)
+
+    Font.set(12)
+    local baseX = 20
+    local baseY = 620
+    local barW  = 120
+    local barH  = 8
+    local lh    = 28
+
+    -- 背景面板
+    love.graphics.setColor(0, 0, 0, 0.6)
+    love.graphics.rectangle("fill", baseX - 4, baseY - 16, 260, lh * #shown + 20, 4, 4)
+
+    love.graphics.setColor(0.7, 0.3, 1.0)
+    love.graphics.print(T("hud.skills"), baseX, baseY - 12)
+
+    for i, entry in ipairs(shown) do
+        local id   = entry.id
+        local inst = entry.inst
+        local cfg  = inst.cfg
+        local y    = baseY + (i - 1) * lh + 4
+
+        local ratio = sm:getCooldownRatio(id, cdReduce)
+        local ready = ratio >= 1.0
+
+        -- 按键标签
+        local keyLabel = ""
+        if cfg.key == "skill1" then keyLabel = "[空格]"
+        elseif cfg.key == "skill2" then keyLabel = "[Q]"
+        elseif cfg.key == "skill3" then keyLabel = "[E]"
+        elseif cfg.key == "skill4" then keyLabel = "[F]"
+        end
+
+        -- 技能名称
+        if ready then
+            love.graphics.setColor(0.3, 1.0, 0.5)
+        else
+            love.graphics.setColor(0.7, 0.7, 0.7)
+        end
+        love.graphics.print(keyLabel .. " " .. T(cfg.nameKey) .. " Lv" .. inst.level, baseX, y)
+
+        -- CD 进度条背景
+        love.graphics.setColor(0.2, 0.2, 0.2)
+        love.graphics.rectangle("fill", baseX, y + 14, barW, barH, 2, 2)
+
+        -- CD 进度条前景
+        if ready then
+            love.graphics.setColor(0.3, 1.0, 0.5)
+        else
+            love.graphics.setColor(0.5, 0.3, 0.8)
+        end
+        love.graphics.rectangle("fill", baseX, y + 14, barW * ratio, barH, 2, 2)
+
+        -- 就绪文字
+        if ready then
+            love.graphics.setColor(0.3, 1.0, 0.5)
+            love.graphics.print("就绪", baseX + barW + 6, y + 10)
+        end
+    end
+
+    Font.reset()
 end
 
 -- 绘制调试日志面板
@@ -624,6 +771,29 @@ function Game:keypressed(key)
     if key == "escape" then
         local StateManager = require("src.states.stateManager")
         StateManager.switch("menu")
+        return
+    end
+
+    -- Phase 8：主动技能按键触发（keypressed 保证单次触发，不重复激活）
+    if _player then
+        local sm  = _player:getSkillManager()
+        local bag = _player:getBag()
+        local psb = bag._playerSynergyBonus or {}
+        local skillPsb = {}
+        sm:recalcPassive(skillPsb)
+        SkillSynergy.recalculate(sm, skillPsb)
+        local mergedCdReduce = (psb.cdReduce or 0) + (skillPsb.cdReduce or 0)
+        local ctx = {
+            dx          = _player._dx,
+            dy          = _player._dy,
+            enemies     = _enemies,
+            projectiles = _projectiles,
+            bag         = bag,
+        }
+        if key == "space" then sm:tryActivate("skill1", _player, ctx, mergedCdReduce) end
+        if key == "q"     then sm:tryActivate("skill2", _player, ctx, mergedCdReduce) end
+        if key == "e"     then sm:tryActivate("skill3", _player, ctx, mergedCdReduce) end
+        if key == "f"     then sm:tryActivate("skill4", _player, ctx, mergedCdReduce) end
     end
 end
 

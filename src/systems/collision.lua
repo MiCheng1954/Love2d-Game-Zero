@@ -63,10 +63,13 @@ end
 -- 检测敌人列表与玩家之间的接触伤害碰撞
 -- @param enemies: 敌人列表
 -- @param player:  玩家实体
+-- @return totalDmg: 本帧玩家实际受到的总伤害（Phase 8 供技能 onHit 使用）
 function Collision.enemiesVsPlayer(enemies, player)
-    if player:isDead() then return end
+    if player:isDead() then return 0 end
 
-    local pr = player.width / 2  -- 玩家碰撞半径
+    local pr       = player.width / 2  -- 玩家碰撞半径
+    local totalDmg = 0
+    local hpBefore = player.hp
 
     for _, enemy in ipairs(enemies) do
         if not enemy._isDead then
@@ -74,10 +77,22 @@ function Collision.enemiesVsPlayer(enemies, player)
                 enemy.x, enemy.y, enemy._radius,
                 player.x, player.y, pr)
             then
-                enemy:tryContactDamage(player)
+                -- Phase 8：魔法护罩吸收下一次伤害
+                if player._shieldActive and not player._shieldAbsorbed then
+                    player._shieldAbsorbed = true
+                    player._shieldActive   = false
+                    player._shieldTimer    = 0
+                    -- 跳过此次伤害
+                else
+                    enemy:tryContactDamage(player)
+                end
             end
         end
     end
+
+    -- 统计实际扣减
+    totalDmg = math.max(0, hpBefore - player.hp)
+    return totalDmg
 end
 
 -- 清理列表中所有已死亡的实体
