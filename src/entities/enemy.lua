@@ -2,6 +2,7 @@
     src/entities/enemy.lua
     敌人类，继承自 Entity
     负责敌人的 AI 追踪、接触伤害、死亡掉落
+    Phase 9：新增精英怪（光环特效）和远程敌人（保距 + 射击）行为
 ]]
 
 local Entity      = require("src.entities.entity")
@@ -39,6 +40,20 @@ function Enemy.new(x, y, typeName)
     self._contactRate = cfg.contactRate     -- 接触伤害冷却（秒）
     self._contactTimer = 0                  -- 接触伤害计时器（秒）
 
+    -- Phase 9：精英怪标记
+    self._isElite     = cfg.isElite or false
+    self._eliteDropChance = cfg.eliteDropChance or 0
+
+    -- Phase 9：远程敌人参数
+    self._isRanger         = cfg.isRanger or false
+    self._keepDistMin      = cfg.keepDistMin or 150
+    self._keepDistMax      = cfg.keepDistMax or 280
+    self._attackInterval   = cfg.attackInterval or 2.0
+    self._attackTimer      = math.random() * (cfg.attackInterval or 2.0)  -- 错开射击时机
+    self._projDamage       = cfg.projectileDamage or 15
+    self._projSpeed        = cfg.projectileSpeed  or 200
+    self._projectileList   = nil   -- 由 Spawner 注入共享列表引用
+
     -- AI 状态
     self._target      = nil                 -- 当前追踪目标（玩家）
 
@@ -51,6 +66,11 @@ function Enemy:setTarget(target)
     self._target = target
 end
 
+-- Phase 9：设置共享投射物列表引用（供远程敌人发射子弹用）
+function Enemy:setProjectileList(list)
+    self._projectileList = list
+end
+
 -- 每帧更新敌人逻辑
 -- @param dt: 距上一帧的时间间隔（秒）
 function Enemy:update(dt)
@@ -61,25 +81,75 @@ function Enemy:update(dt)
         self._contactTimer = self._contactTimer - dt
     end
 
-    -- AI：追踪目标
-    self:_chase(dt)
+    -- Phase 9：远程敌人 AI / 近战敌人 AI
+    if self._isRanger then
+        self:_updateRanger(dt)
+    else
+        self:_chase(dt)
+    end
 end
 
--- 追踪目标的移动逻辑
+-- 追踪目标的移动逻辑（近战）
 -- @param dt: 距上一帧的时间间隔（秒）
 function Enemy:_chase(dt)
     if not self._target then return end
 
-    -- 计算朝向目标的方向向量
     local dx = self._target.x - self.x
     local dy = self._target.y - self.y
     local dist = math.sqrt(dx * dx + dy * dy)
 
-    if dist < 1 then return end  -- 已到达目标位置，不再移动
+    if dist < 1 then return end
 
-    -- 归一化方向并移动
     self.x = self.x + (dx / dist) * self.speed * dt
     self.y = self.y + (dy / dist) * self.speed * dt
+end
+
+-- Phase 9：远程敌人行为（保持距离 + 定时射击）
+function Enemy:_updateRanger(dt)
+    if not self._target then return end
+
+    local dx   = self._target.x - self.x
+    local dy   = self._target.y - self.y
+    local dist = math.sqrt(dx * dx + dy * dy)
+
+    -- 移动：与玩家保持 keepDistMin~keepDistMax 之间
+    if dist > self._keepDistMax then
+        -- 太远，靠近
+        local nx = dx / dist
+        local ny = dy / dist
+        self.x = self.x + nx * self.speed * dt
+        self.y = self.y + ny * self.speed * dt
+    elseif dist < self._keepDistMin then
+        -- 太近，后退
+        local nx = dx / dist
+        local ny = dy / dist
+        self.x = self.x - nx * self.speed * dt
+        self.y = self.y - ny * self.speed * dt
+    end
+
+    -- 射击计时
+    self._attackTimer = self._attackTimer + dt
+    if self._attackTimer >= self._attackInterval then
+        self._attackTimer = self._attackTimer - self._attackInterval
+        self:_rangerShoot()
+    end
+end
+
+-- Phase 9：远程敌人射击
+function Enemy:_rangerShoot()
+    if not self._target or not self._projectileList then return end
+
+    local Projectile = require("src.entities.projectile")
+    local dx = self._target.x - self.x
+    local dy = self._target.y - self.y
+    local d  = math.sqrt(dx * dx + dy * dy)
+    if d < 1 then return end
+
+    local p = Projectile.new(self.x, self.y, dx/d, dy/d,
+        self._projDamage, self._projSpeed)
+    p._isEnemyProjectile = true   -- 标记为敌方投射物
+    p._damage            = self._projDamage
+    table.insert(self._projectileList, p)
 end
 
 -- 尝试对目标造成接触伤害（有冷却限制）
@@ -87,10 +157,10 @@ end
 function Enemy:tryContactDamage(target)
     if self._isDead then return end
     if self._contactTimer > 0 then return end
+    if self._damage <= 0 then return end   -- 远程敌人无接触伤害
 
-    -- 造成伤害
     target:takeDamage(self._damage)
-    self._contactTimer = self._contactRate  -- 重置冷却
+    self._contactTimer = self._contactRate
 end
 
 -- 将敌人绘制到屏幕上
@@ -98,42 +168,61 @@ function Enemy:draw()
     if not self._isVisible or self._isDead then return end
 
     if self._sprite then
-        -- 有资产时：绘制贴图（预留接口）
         love.graphics.setColor(1, 1, 1)
         love.graphics.draw(self._sprite, self.x, self.y, 0, 1, 1,
             self._radius, self._radius)
     else
-        -- 无资产时：代码绘制 fallback
-        -- 身体
-        love.graphics.setColor(self._color)
+        -- Phase 9：精英怪外圈光环
+        if self._isElite then
+            love.graphics.setColor(1.0, 0.85, 0.1, 0.35)
+            love.graphics.circle("fill", self.x, self.y, self._radius + 6)
+            love.graphics.setColor(1.0, 0.85, 0.1, 0.9)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle("line", self.x, self.y, self._radius + 6)
+            love.graphics.setLineWidth(1)
+        end
+
+        -- 身体（精英怪颜色加深）
+        local c = self._color
+        if self._isElite then
+            love.graphics.setColor(math.min(1, c[1]*1.2), math.min(1, c[2]*1.2), math.min(1, c[3]*0.3))
+        else
+            love.graphics.setColor(c)
+        end
         love.graphics.circle("fill", self.x, self.y, self._radius)
 
         -- 边框
-        love.graphics.setColor(
-            self._color[1] * 0.5,
-            self._color[2] * 0.5,
-            self._color[3] * 0.5)
+        love.graphics.setColor(c[1]*0.5, c[2]*0.5, c[3]*0.5)
         love.graphics.circle("line", self.x, self.y, self._radius)
 
-        -- HP 条（显示在敌人头顶）
+        -- Phase 9：远程敌人准心标记（小圆圈）
+        if self._isRanger then
+            love.graphics.setColor(0.2, 0.8, 1.0, 0.7)
+            love.graphics.circle("line", self.x, self.y, self._radius - 4)
+        end
+
+        -- HP 条
         self:_drawHpBar()
     end
 end
 
 -- 绘制敌人头顶的 HP 条
 function Enemy:_drawHpBar()
-    local barW  = self._radius * 2     -- HP 条宽度
-    local barH  = 3                    -- HP 条高度
-    local bx    = self.x - self._radius  -- HP 条左上角 X
-    local by    = self.y - self._radius - 6  -- HP 条左上角 Y（头顶上方）
-    local ratio = self.hp / self.maxHp   -- 当前血量比例
+    local barW  = self._radius * 2
+    local barH  = 3
+    local bx    = self.x - self._radius
+    local by    = self.y - self._radius - 6
+    local ratio = self.hp / self.maxHp
 
-    -- 背景
     love.graphics.setColor(0.2, 0.2, 0.2)
     love.graphics.rectangle("fill", bx, by, barW, barH)
 
-    -- 前景
-    love.graphics.setColor(0.8, 0.2, 0.2)
+    -- 精英怪血条用金色
+    if self._isElite then
+        love.graphics.setColor(1.0, 0.8, 0.1)
+    else
+        love.graphics.setColor(0.8, 0.2, 0.2)
+    end
     love.graphics.rectangle("fill", bx, by, barW * ratio, barH)
 end
 
@@ -142,12 +231,10 @@ end
 function Enemy:onDeath()
     self._isDead        = true
     self._isVisible     = false
-    self._dropProcessed = false   -- 掉落物尚未被游戏主循环处理
+    self._dropProcessed = false
 
-    -- 生成掉落物列表
     local pickups = {}
 
-    -- 经验掉落
     if self._expDrop > 0 then
         table.insert(pickups, Pickup.new(
             self.x, self.y,
@@ -155,9 +242,7 @@ function Enemy:onDeath()
             self._expDrop))
     end
 
-    -- 灵魂掉落
     if self._soulDrop > 0 then
-        -- 灵魂掉落位置稍微偏移，避免和经验重叠
         table.insert(pickups, Pickup.new(
             self.x + math.random(-10, 10),
             self.y + math.random(-10, 10),
@@ -165,8 +250,10 @@ function Enemy:onDeath()
             self._soulDrop))
     end
 
-    -- 小概率掉落事件触发器（10% 概率）
-    if math.random() < 0.10 then
+    -- 普通怪：10% 概率掉落触发器
+    -- 精英怪：精英专属掉落概率（更高）
+    local triggerChance = self._isElite and self._eliteDropChance or 0.10
+    if math.random() < triggerChance then
         table.insert(pickups, Pickup.new(
             self.x + math.random(-15, 15),
             self.y + math.random(-15, 15),
@@ -178,13 +265,11 @@ function Enemy:onDeath()
 end
 
 -- 获取击杀经验值掉落量
--- @return 经验值数量（number）
 function Enemy:getExpDrop()
     return self._expDrop
 end
 
 -- 获取击杀灵魂掉落量
--- @return 灵魂数量（number）
 function Enemy:getSoulDrop()
     return self._soulDrop
 end

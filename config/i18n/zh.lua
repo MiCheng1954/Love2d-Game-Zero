@@ -276,4 +276,14 @@ return {
     ["syn.skill.精准.t2.desc"] = "精准技能 x2：暴击率 +8%",
     ["syn.skill.精准.t3.name"] = "致命精准",
     ["syn.skill.精准.t3.desc"] = "精准技能 x3：暴击率 +15%，暴击伤害 +40%",
+
+    -- Phase 9：Boss 名称
+    ["boss.crusher.name"]   = "碎骨者",
+    ["boss.phantom.name"]   = "幽灵法师",
+    ["boss.colossus.name"]  = "钢铁巨兽",
+    ["boss.void_lord.name"] = "虚空领主",
+
+    -- Phase 9：胜利文本
+    ["hud.victory"]         = "★  胜利！  ★",
+    ["hud.victory_hint"]    = "你击败了虚空领主，世界得救了！",
 }

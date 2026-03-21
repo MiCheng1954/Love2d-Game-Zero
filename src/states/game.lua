@@ -12,11 +12,13 @@ local Camera     = require("src.systems.camera")
 local Collision  = require("src.systems.collision")
 local Spawner    = require("src.systems.spawner")
 local Experience = require("src.systems.experience")
-local SkillSynergy = require("src.systems.skillSynergy")
-local FX           = require("src.systems.skillEffects")   -- Phase 8 需求1
+local SkillSynergy   = require("src.systems.skillSynergy")
+local FX             = require("src.systems.skillEffects")   -- Phase 8 需求1
+local RhythmController = require("src.systems.rhythmController")  -- Phase 9
 local Player     = require("src.entities.player")
 local Projectile = require("src.entities.projectile")
 local Weapon     = require("src.entities.weapon")
+local Boss       = require("src.entities.boss")   -- Phase 9
 local Log        = require("src.utils.log")
 
 local Game = {}
@@ -28,7 +30,14 @@ local _projectiles = {}    -- 当前场景所有投射物列表
 local _pickups     = {}    -- 当前场景所有掉落物列表
 local _spawner     = nil   -- 敌人生成系统实例
 local _experience  = nil   -- 经验升级系统实例
+local _rhythm      = nil   -- 节奏控制器实例（Phase 9）
+local _boss        = nil   -- 当前活跃的 Boss 实例（Phase 9，nil=无Boss）
 local _pendingUpgrade = nil  -- 待处理的升级跳转数据（当帧 update 结束后再切换，防止 exit 破坏帧内状态）
+
+-- Phase 9：胜利状态
+local _victory = false         -- 是否已触发胜利
+local _victoryTimer = 0        -- 胜利画面停留计时（秒）
+local VICTORY_DELAY = 4.0      -- 胜利后 N 秒跳转
 
 -- 自动攻击配置（无装备武器时的 fallback 参数）
 local FALLBACK_ATTACK_INTERVAL = 1.0   -- fallback 攻击间隔（秒）
@@ -58,6 +67,9 @@ function Game:enter()
     _pickups     = {}
     _fallbackTimer = 0
     _paused        = false
+    _boss          = nil    -- Phase 9
+    _victory       = false
+    _victoryTimer  = 0
 
     -- 初始化玩家
     _player = Player.new(0, 0)
@@ -68,9 +80,12 @@ function Game:enter()
     _camera:setTarget(_player)
 
     -- 初始化生成系统
-    _spawner = Spawner.new(_enemies)
+    _spawner = Spawner.new(_enemies, _projectiles)
     _spawner:setTarget(_player)
     _spawner:setSkillManager(_player:getSkillManager())  -- Bug#20：传入技能管理器
+
+    -- Phase 9：初始化节奏控制器
+    _rhythm = RhythmController.new()
 
     -- 初始化经验系统，注册升级回调
     _experience = Experience.new(_player)
@@ -92,8 +107,11 @@ function Game:exit()
     _pickups         = {}
     _spawner         = nil
     _experience      = nil
+    _rhythm          = nil   -- Phase 9
+    _boss            = nil   -- Phase 9
     _pendingUpgrade  = nil
     _fallbackTimer   = 0
+    _victory         = false
     FX.clear()   -- 需求1：清除所有视觉特效
 end
 
@@ -197,8 +215,55 @@ function Game:update(dt)
     -- 更新经验系统（检测升级）
     _experience:update(dt)
 
-    -- 更新生成系统
-    _spawner:update(dt)
+    -- Phase 9：更新节奏控制器
+    _rhythm:update(dt)
+
+    -- Phase 9：消费待触发的 Boss
+    local pendingBosses = _rhythm:getPendingBosses()
+    for _, bossCfg in ipairs(pendingBosses) do
+        if not _boss or _boss._isDead then
+            -- 在玩家周围随机方向 600px 处生成 Boss
+            local angle = math.random() * math.pi * 2
+            local bx    = _player.x + math.cos(angle) * 600
+            local by    = _player.y + math.sin(angle) * 600
+            _boss = Boss.new(bx, by, bossCfg)
+            _boss:setTarget(_player)
+            _boss:setProjectileList(_projectiles)
+            Log.info("Boss 登场：" .. bossCfg.id .. "（phase " .. bossCfg.phase .. "min）")
+        end
+    end
+
+    -- Phase 9：更新 Boss
+    if _boss and not _boss._isDead then
+        _boss:update(dt)
+        -- Boss 接触伤害
+        local dx = _player.x - _boss.x
+        local dy = _player.y - _boss.y
+        if math.sqrt(dx*dx + dy*dy) <= (_boss._radius + 18) then
+            _boss:tryContactDamage(_player)
+        end
+        -- Boss 召唤技能：处理 _summonPending（由技能 effect 写入）
+        if _boss._summonPending and _boss._summonPending > 0 then
+            local count = _boss._summonPending
+            _boss._summonPending = 0
+            for _ = 1, count do
+                local angle  = math.random() * math.pi * 2
+                local dist   = 200 + math.random() * 150
+                local sx     = _boss.x + math.cos(angle) * dist
+                local sy     = _boss.y + math.sin(angle) * dist
+                local minion = require("src.entities.enemy").new(sx, sy, "basic")
+                minion:setTarget(_player)
+                if _projectiles then
+                    minion:setProjectileList(_projectiles)
+                end
+                table.insert(_enemies, minion)
+            end
+            Log.info("Boss 召唤了 " .. count .. " 只小兵")
+        end
+    end
+
+    -- 更新生成系统（传入节奏控制器参数）
+    _spawner:update(dt, _rhythm:getSpawnParams(), _rhythm:getElapsed())
 
     -- 更新所有敌人
     for _, enemy in ipairs(_enemies) do
@@ -227,6 +292,30 @@ function Game:update(dt)
         end
         -- Phase 8：通知技能系统击杀事件
         sm:onKill(_player, killData.enemy, skillCtx)
+    end
+
+    -- Phase 9：子弹 vs Boss 碰撞检测
+    if _boss and not _boss._isDead then
+        local bossKills = Collision.projectilesVsBoss(_projectiles, _boss)
+        if bossKills then
+            -- Boss 死亡：处理掉落和胜利判断
+            local pickups = _boss:onDeath()
+            for _, pickup in ipairs(pickups or {}) do
+                table.insert(_pickups, pickup)
+            end
+            Log.info("Boss 击败：" .. _boss._typeName .. "  isFinal=" .. tostring(_boss._isFinal))
+            if _boss._isFinal then
+                _victory = true
+                _victoryTimer = VICTORY_DELAY
+                Log.info("最终 Boss 已击败，触发胜利！")
+            end
+        end
+    end
+
+    -- Phase 9：敌方投射物 vs 玩家碰撞检测
+    local enemyProjDmg = Collision.enemyProjectilesVsPlayer(_projectiles, _player)
+    if enemyProjDmg and enemyProjDmg > 0 then
+        sm:onHit(_player, enemyProjDmg, skillCtx)
     end
 
     -- Bug#28：扫描被技能 AOE 打死但未走击杀流水线的敌人，补全掉落和 onKill 事件
@@ -258,16 +347,34 @@ function Game:update(dt)
     -- 检测玩家死亡（Phase 10 接入传承系统，暂时直接跳转结算）
     if _player:isDead() then
         Log.info(string.format("玩家死亡 — Lv%d  elapsed=%.1fs  enemies=%d",
-            _player:getLevel(), _spawner._elapsed, #_enemies))
+            _player:getLevel(), _rhythm:getElapsed(), #_enemies))
         local StateManager = require("src.states.stateManager")
         StateManager.switch("gameover")
         return
+    end
+
+    -- Phase 9：胜利倒计时（击败最终 Boss 后）
+    if _victory then
+        _victoryTimer = _victoryTimer - dt
+        if _victoryTimer <= 0 then
+            local StateManager = require("src.states.stateManager")
+            StateManager.switch("gameover")   -- 暂用 gameover 代替胜利界面（Phase 10 再细化）
+        end
+        -- 胜利状态：不再更新敌人/生成，直接进入最终清理和跳转
+        goto continueAfterVictory
     end
 
     -- 清理死亡实体
     Collision.clearDead(_enemies)
     Collision.clearDead(_projectiles)
     Collision.clearDead(_pickups)
+
+    -- Phase 9：清理死亡的 Boss 引用
+    if _boss and _boss._isDead then
+        _boss = nil
+    end
+
+    ::continueAfterVictory::
 
     -- 更新摄像机
     _camera:update(dt)
@@ -455,6 +562,11 @@ function Game:draw()
         enemy:draw()
     end
 
+    -- Phase 9：绘制 Boss（Boss 在世界坐标层）
+    if _boss and not _boss._isDead then
+        _boss:draw()
+    end
+
     -- 绘制所有投射物
     for _, proj in ipairs(_projectiles) do
         proj:draw()
@@ -560,6 +672,14 @@ function Game._drawHUD()
     -- Phase 8：左下角技能栏
     Game._drawSkillBar()
 
+    -- Phase 9：Boss 血条（屏幕顶部）
+    if _boss and not _boss._isDead then
+        _boss:drawHUD(1280, T(_boss._bossName))
+    end
+
+    -- Phase 9：右上角计时器 + 节奏阶段
+    Game._drawTimer()
+
     -- 暂停遮罩
     if _paused then
         love.graphics.setColor(0, 0, 0, 0.5)
@@ -598,6 +718,19 @@ function Game._drawHUD()
         love.graphics.printf(
             T("upgrade.reached", _levelUpNotice.level),
             490, 316, 300, "center")
+    end
+
+    -- Phase 9：胜利画面覆盖
+    if _victory then
+        love.graphics.setColor(0, 0, 0, 0.7)
+        love.graphics.rectangle("fill", 0, 0, 1280, 720)
+        Font.set(40)
+        love.graphics.setColor(1.0, 0.9, 0.2)
+        love.graphics.printf(T("hud.victory") or "胜利！", 0, 280, 1280, "center")
+        Font.set(18)
+        love.graphics.setColor(0.8, 0.8, 0.8)
+        love.graphics.printf(T("hud.victory_hint") or "你击败了虚空领主！", 0, 340, 1280, "center")
+        Font.reset()
     end
 
     -- 调试日志面板（右上角）
@@ -748,6 +881,36 @@ function Game._drawSkillBar()
     Font.reset()
 end
 
+-- Phase 9：绘制游戏计时器和节奏阶段（右上角，羁绊列表旁）
+function Game._drawTimer()
+    if not _rhythm then return end
+    local elapsed = _rhythm:getElapsed()
+    local minutes = math.floor(elapsed / 60)
+    local seconds = math.floor(elapsed % 60)
+    local timeStr = string.format("%02d:%02d", minutes, seconds)
+
+    Font.set(16)
+    love.graphics.setColor(0.9, 0.9, 0.9, 0.85)
+    love.graphics.printf(timeStr, 0, 20, 1260, "right")
+
+    -- 节奏阶段小提示
+    local phaseColors = {
+        calm    = {0.5, 0.8, 0.5},
+        rising  = {0.9, 0.8, 0.3},
+        peak    = {1.0, 0.4, 0.2},
+        rest    = {0.5, 0.7, 0.9},
+        surge   = {1.0, 0.2, 0.6},
+    }
+    local phase = _rhythm:getPhaseName()
+    local c = phaseColors[phase] or {0.7, 0.7, 0.7}
+    Font.set(12)
+    love.graphics.setColor(c[1], c[2], c[3], 0.75)
+    love.graphics.printf(phase, 0, 40, 1260, "right")
+    Font.reset()
+
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 -- 绘制调试日志面板
 function Game._drawDebugPanel()
     local x  = 900
@@ -847,14 +1010,21 @@ function Game._drawDebugPanel()
     love.graphics.print(string.format(
         "FPS: %d", love.timer.getFPS()), x, y + lh * baseRow)
 
-    -- Spawner 信息
+    -- Phase 9：节奏控制器信息
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print(string.format(
-        "Spawner: interval=%.2f  batch=%d",
-        _spawner._interval, _spawner._batchSize), x, y + lh * (baseRow + 1))
-    love.graphics.print(string.format(
-        "Elapsed: %.1f s  | Paused: %s",
-        _spawner._elapsed, tostring(_paused)), x, y + lh * (baseRow + 2))
+    if _rhythm then
+        local params = _rhythm:getSpawnParams()
+        love.graphics.print(string.format(
+            "Rhythm: interval=%.2f  batch=%d  elite=%.0f%%  ranger=%.0f%%",
+            params.interval, params.batchSize,
+            params.eliteChance * 100, params.rangerChance * 100),
+            x, y + lh * (baseRow + 1))
+        love.graphics.print(string.format(
+            "Elapsed: %.1f s  | Phase: %s  | Boss: %s",
+            _rhythm:getElapsed(), _rhythm:getPhaseName(),
+            _boss and _boss._typeName or "none"),
+            x, y + lh * (baseRow + 2))
+    end
 
     Font.reset()
 end

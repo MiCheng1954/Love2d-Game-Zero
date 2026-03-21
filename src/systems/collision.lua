@@ -105,4 +105,62 @@ function Collision.clearDead(list)
     end
 end
 
+-- Phase 9：检测玩家投射物与 Boss 之间的碰撞
+-- 只检测非敌方子弹（_isEnemyProjectile == nil/false）
+-- @param projectiles: 投射物列表
+-- @param boss:        Boss 实体
+-- @return boolean: Boss 是否被击杀
+function Collision.projectilesVsBoss(projectiles, boss)
+    if not boss or boss._isDead then return false end
+
+    for _, proj in ipairs(projectiles) do
+        if not proj._isDead and not proj._isEnemyProjectile then
+            if Collision.circleCircle(
+                proj.x,  proj.y,  proj._radius,
+                boss.x,  boss.y,  boss._radius)
+            then
+                proj:onHit(boss)
+                if boss:isDead() then
+                    return true
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+-- Phase 9：检测敌方投射物与玩家之间的碰撞
+-- @param projectiles: 投射物列表（含玩家和敌方）
+-- @param player:      玩家实体
+-- @return totalDmg: 玩家本帧从敌方投射物受到的总伤害
+function Collision.enemyProjectilesVsPlayer(projectiles, player)
+    if player:isDead() then return 0 end
+
+    local pr       = player.width / 2
+    local hpBefore = player.hp
+
+    for _, proj in ipairs(projectiles) do
+        if not proj._isDead and proj._isEnemyProjectile then
+            if Collision.circleCircle(
+                proj.x,  proj.y,  proj._radius,
+                player.x, player.y, pr)
+            then
+                -- 魔法护罩吸收
+                if player._shieldActive and not player._shieldAbsorbed then
+                    player._shieldAbsorbed = true
+                    player._shieldActive   = false
+                    player._shieldTimer    = 0
+                    proj._isDead = true
+                else
+                    player:takeDamage(proj._damage or 10)
+                    proj._isDead = true
+                end
+            end
+        end
+    end
+
+    return math.max(0, hpBefore - player.hp)
+end
+
 return Collision

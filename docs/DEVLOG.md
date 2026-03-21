@@ -4,6 +4,34 @@
 
 ---
 
+## [2026-03-21] Phase 9 — 节奏控制器 + Boss 系统 + 精英/远程敌人
+
+**做了什么：**
+
+### 新增文件
+- `config/bosses.lua` — 4 个 Boss 配置（碎骨者/幽灵法师/钢铁巨兽/虚空领主），含技能闭包、触发时间、isFinal 标记
+- `src/entities/boss.lua` — Boss 实体类（继承 Enemy），独立技能计时器、冲刺状态、屏幕顶部大血条、死亡掉落爆炸散开
+- `src/systems/rhythmController.lua` — 节奏控制器，统一管理生成间隔/批量大小/精英概率/远程概率，在 4/8/12/18 分钟触发 Boss 信号
+
+### 改动文件
+- `config/enemies.lua` — 新增 elite（精英怪）和 ranger（远程敌人）配置
+- `src/entities/enemy.lua` — Phase 9 重写：精英怪金色光环 + 加深颜色，远程敌人保距 AI（150-280px）+ 定时射击，修复文件内重复内容
+- `src/systems/spawner.lua` — 接入 RhythmController 参数，支持精英怪/远程敌人生成，远程敌人注入共享投射物列表
+- `src/systems/collision.lua` — 新增 `projectilesVsBoss()`（玩家子弹 vs Boss）和 `enemyProjectilesVsPlayer()`（敌方投射物 vs 玩家）
+- `src/states/game.lua` — 接入 RhythmController + Boss 实体：Boss 登场/更新/召唤小兵/胜利判断，屏幕顶部 Boss 血条，右上角计时器+节奏阶段显示，胜利画面覆盖
+- `config/i18n/zh.lua` — 新增 Boss 名称 x4，胜利文本 x2
+
+### 游戏设计
+- 共 4 个 Boss，分别在 4/8/12/18 分钟出现
+- 击败最终 Boss（虚空领主）即触发胜利，4 秒后跳转结算
+- 精英怪：HP×3，伤害×2，速度+30%，金色外圈光晕，25% 概率额外掉落触发器
+- 远程敌人：与玩家保持 150-280px 距离，每 2 秒向玩家射击一颗子弹
+- 节奏阶段：calm → rising → peak → rest（每 120 秒一循环）→ surge（16 分钟后）
+
+**测试：** 115 passed, 0 failed
+
+---
+
 ## [2026-03-20 14:44:43] 项目规范确立
 
 **做了什么：** 确定游戏类型、项目结构与开发规范
