@@ -109,9 +109,9 @@ end
 -- 只检测非敌方子弹（_isEnemyProjectile == nil/false）
 -- @param projectiles: 投射物列表
 -- @param boss:        Boss 实体
--- @return boolean: Boss 是否被击杀
+-- @return pickups: Boss 死亡时生成的掉落物列表（未死亡返回 nil）
 function Collision.projectilesVsBoss(projectiles, boss)
-    if not boss or boss._isDead then return false end
+    if not boss or boss._isDead then return nil end
 
     for _, proj in ipairs(projectiles) do
         if not proj._isDead and not proj._isEnemyProjectile then
@@ -119,15 +119,33 @@ function Collision.projectilesVsBoss(projectiles, boss)
                 proj.x,  proj.y,  proj._radius,
                 boss.x,  boss.y,  boss._radius)
             then
-                proj:onHit(boss)
-                if boss:isDead() then
-                    return true
+                -- 命中 Boss：手动扣血（不通过 onHit，避免 takeDamage→onDeath 双重触发）
+                if not proj._hit then
+                    proj._hit    = true
+                    proj._isDead = true
+                    -- 计算暴击
+                    local isCrit = math.random() < (proj._critRate or 0.05)
+                    local origCrit = nil
+                    if isCrit and proj._critDamage and proj._critDamage ~= boss.critDamage then
+                        origCrit      = boss.critDamage
+                        boss.critDamage = proj._critDamage
+                    end
+                    local actual = math.max(1, (proj._damage or 10) - (boss.defense or 0))
+                    if isCrit then actual = math.floor(actual * boss.critDamage) end
+                    if origCrit ~= nil then boss.critDamage = origCrit end
+                    boss.hp = boss.hp - actual
+                    if boss.hp <= 0 then
+                        boss.hp = 0
+                        -- Boss 死亡：收集掉落物并返回
+                        local pickups = boss:onDeath()
+                        return pickups or {}
+                    end
                 end
             end
         end
     end
 
-    return false
+    return nil
 end
 
 -- Phase 9：检测敌方投射物与玩家之间的碰撞

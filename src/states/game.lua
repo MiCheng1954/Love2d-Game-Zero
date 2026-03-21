@@ -296,11 +296,10 @@ function Game:update(dt)
 
     -- Phase 9：子弹 vs Boss 碰撞检测
     if _boss and not _boss._isDead then
-        local bossKills = Collision.projectilesVsBoss(_projectiles, _boss)
-        if bossKills then
+        local bossPickups = Collision.projectilesVsBoss(_projectiles, _boss)
+        if bossPickups then
             -- Boss 死亡：处理掉落和胜利判断
-            local pickups = _boss:onDeath()
-            for _, pickup in ipairs(pickups or {}) do
+            for _, pickup in ipairs(bossPickups) do
                 table.insert(_pickups, pickup)
             end
             Log.info("Boss 击败：" .. _boss._typeName .. "  isFinal=" .. tostring(_boss._isFinal))
@@ -358,7 +357,8 @@ function Game:update(dt)
         _victoryTimer = _victoryTimer - dt
         if _victoryTimer <= 0 then
             local StateManager = require("src.states.stateManager")
-            StateManager.switch("gameover")   -- 暂用 gameover 代替胜利界面（Phase 10 再细化）
+            StateManager.switch("gameover")
+            return   -- 切换状态后立即返回，避免访问已被 exit() 清空的状态
         end
         -- 胜利状态：不再更新敌人/生成，直接进入最终清理和跳转
         goto continueAfterVictory
@@ -520,9 +520,10 @@ function Game._updateAutoAttack(dt)
     end
 end
 
--- 在所有敌人中寻找距离玩家最近且在指定范围内的目标（索敌接口，Phase 7+ 可替换）
+-- 在所有敌人（含 Boss）中寻找距离玩家最近且在指定范围内的目标
+-- Phase 9 修复 Bug#33：Boss 不在 _enemies 列表，需单独纳入索敌范围
 -- @param range: 最大索敌距离（像素）
--- @return 最近的 Enemy 实例，若无则返回 nil
+-- @return 最近的 Enemy/Boss 实例，若无则返回 nil
 function Game._findNearestEnemyInRange(range)
     local nearest = nil
     local minDist = range
@@ -536,6 +537,14 @@ function Game._findNearestEnemyInRange(range)
                 minDist = dist
                 nearest = enemy
             end
+        end
+    end
+
+    -- Phase 9：同时检测 Boss
+    if _boss and not _boss._isDead then
+        local dist = MathUtils.distance(_player.x, _player.y, _boss.x, _boss.y)
+        if dist < minDist then
+            nearest = _boss
         end
     end
 

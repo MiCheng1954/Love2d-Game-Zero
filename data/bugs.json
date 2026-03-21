@@ -60,4 +60,8 @@
   {"id":30,"desc":"第一次进入游戏的时候，还没有获得技能时，左下角的技能栏没有显示出来","time":"2026-03-21 16:22:38","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":1,"hp":100,"elapsed":7.0,"enemies":2,"logSnapshot":"logs/bug_30_20260321_162238.log"}}
 ,
   {"id":31,"desc":"背包页面还是没有技能详情","time":"2026-03-21 16:25:55","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":4,"hp":130,"elapsed":34.7,"enemies":3,"logSnapshot":"logs/bug_31_20260321_162555.log"}}
+,
+  {"id":32,"desc":"触发形的技能在触发的时候也需要特效","time":"2026-03-22 00:50:33","priority":3,"status":"fixed","fixedTime":"2026-03-22","log":{"level":12,"hp":210,"elapsed":93.4,"enemies":72,"logSnapshot":"logs/bug_32_20260322_005033.log"}}
+,
+  {"id":33,"desc":"似乎有些武器无法对boss生效，看下什么原因","time":"2026-03-22 00:54:57","priority":3,"status":"fixed","fixedTime":"2026-03-22","log":{"level":23,"hp":375,"elapsed":258.6,"enemies":5,"logSnapshot":"logs/bug_33_20260322_005457.log"}}
 ]

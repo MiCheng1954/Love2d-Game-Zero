@@ -165,6 +165,52 @@ function FX.spawn(skillId, player, ctx)
             duration = 0.2,
             r = 1.0, g = 0.1, b = 0.1, a = 0.2,
         })
+
+    elseif skillId == "ammo_supply" then
+        -- 弹药补给：玩家周围青绿扩散圈
+        addEffect({
+            type     = "ring_expand",
+            x        = player.x,
+            y        = player.y,
+            radius   = 0,
+            maxR     = 60,
+            duration = 0.4,
+            r = 0.2, g = 1.0, b = 0.7,
+        })
+        addEffect({
+            type     = "screen_flash",
+            duration = 0.15,
+            r = 0.2, g = 1.0, b = 0.6, a = 0.1,
+        })
+
+    elseif skillId == "soul_drain" then
+        -- 灵魂汲取：紫色收缩圆（从外往内）
+        addEffect({
+            type     = "ring_expand",
+            x        = player.x,
+            y        = player.y,
+            radius   = 120,
+            maxR     = 10,
+            duration = 0.35,
+            r = 0.7, g = 0.2, b = 1.0,
+        })
+
+    elseif skillId == "thorns" then
+        -- 荆棘反射：玩家身上红橙闪光圈
+        addEffect({
+            type     = "orbit_ring",
+            x        = player.x,
+            y        = player.y,
+            playerRef = player,
+            radius   = 22,
+            duration = 0.5,
+            r = 1.0, g = 0.3, b = 0.1,
+        })
+        addEffect({
+            type     = "screen_flash",
+            duration = 0.15,
+            r = 1.0, g = 0.3, b = 0.1, a = 0.15,
+        })
     end
 end
 
