@@ -49,6 +49,10 @@ local _attackTimer = 0             -- 攻击冷却计时器（秒）-- 已弃用
 local _fallbackTimer = 0           -- fallback 攻击冷却计时器
 local _paused = false              -- 游戏是否暂停
 
+-- Phase 10：统计数据
+local _killCount    = 0    -- 本局总击杀数
+local _killedBosses = {}   -- 本局击杀的 Boss 列表（id 字符串数组）
+
 -- 升级提示浮窗状态
 local _levelUpNotice = {
     active   = false,  -- 是否显示中
@@ -70,6 +74,10 @@ function Game:enter()
     _boss          = nil    -- Phase 9
     _victory       = false
     _victoryTimer  = 0
+
+    -- Phase 10：统计数据重置
+    _killCount    = 0
+    _killedBosses = {}
 
     -- 初始化玩家
     _player = Player.new(0, 0)
@@ -112,6 +120,8 @@ function Game:exit()
     _pendingUpgrade  = nil
     _fallbackTimer   = 0
     _victory         = false
+    _killCount       = 0
+    _killedBosses    = {}
     FX.clear()   -- 需求1：清除所有视觉特效
 end
 
@@ -158,6 +168,17 @@ function Game:update(dt)
     local mergedPsb = {}
     for k, v in pairs(psb)      do mergedPsb[k] = v end
     for k, v in pairs(skillPsb) do mergedPsb[k] = (mergedPsb[k] or 0) + v end
+
+    -- Phase 10：叠加传承加成到 mergedPsb
+    if _player._legacyBulletSpeed and _player._legacyBulletSpeed > 0 then
+        mergedPsb.bulletSpeed = (mergedPsb.bulletSpeed or 0) + _player._legacyBulletSpeed
+    end
+    if _player._legacyCdReduce and _player._legacyCdReduce > 0 then
+        mergedPsb.cdReduce = (mergedPsb.cdReduce or 0) + _player._legacyCdReduce
+    end
+    if _player._legacyExpMult and _player._legacyExpMult > 0 then
+        mergedPsb.expMult = (mergedPsb.expMult or 0) + _player._legacyExpMult
+    end
 
     -- maxHP 加成：检测变化并同步当前 HP（避免每帧重复叠加，用 _psbMaxHP 缓存上次值）
     local psbMaxHP = mergedPsb.maxHP or 0
@@ -292,6 +313,8 @@ function Game:update(dt)
         end
         -- Phase 8：通知技能系统击杀事件
         sm:onKill(_player, killData.enemy, skillCtx)
+        -- Phase 10：统计击杀数
+        _killCount = _killCount + 1
     end
 
     -- Phase 9：子弹 vs Boss 碰撞检测
@@ -303,6 +326,8 @@ function Game:update(dt)
                 table.insert(_pickups, pickup)
             end
             Log.info("Boss 击败：" .. _boss._typeName .. "  isFinal=" .. tostring(_boss._isFinal))
+            -- Phase 10：记录被击杀的 Boss
+            table.insert(_killedBosses, _boss._typeName or _boss._bossName or "unknown")
             if _boss._isFinal then
                 _victory = true
                 _victoryTimer = VICTORY_DELAY
@@ -334,6 +359,8 @@ function Game:update(dt)
             end
             -- 通知技能系统击杀事件（触发 onkill 被动技能）
             sm:onKill(_player, enemy, skillCtx)
+            -- Phase 10：统计击杀数
+            _killCount = _killCount + 1
         end
     end
 
@@ -343,12 +370,66 @@ function Game:update(dt)
         sm:onHit(_player, playerDmgTaken, skillCtx)
     end
 
-    -- 检测玩家死亡（Phase 10 接入传承系统，暂时直接跳转结算）
+    -- 检测玩家死亡（Phase 10：接入复活/传承系统）
     if _player:isDead() then
-        Log.info(string.format("玩家死亡 — Lv%d  elapsed=%.1fs  enemies=%d",
-            _player:getLevel(), _rhythm:getElapsed(), #_enemies))
+        Log.info(string.format("玩家死亡 — Lv%d  elapsed=%.1fs  enemies=%d  kills=%d",
+            _player:getLevel(), _rhythm:getElapsed(), #_enemies, _killCount))
         local StateManager = require("src.states.stateManager")
-        StateManager.switch("gameover")
+        -- 构建结算数据
+        local summaryData = {
+            isVictory    = false,
+            elapsed      = _rhythm:getElapsed(),
+            level        = _player:getLevel(),
+            killCount    = _killCount,
+            souls        = _player:getSouls(),
+            activeSynergies = _player:getBag()._activeSynergies or {},
+            killedBosses = _killedBosses,
+        }
+        -- Phase 10：检查复活次数
+        if _player._revives and _player._revives > 0 then
+            -- 有复活机会：弹出复活/传承二选一界面
+            StateManager.push("reviveUI", {
+                player      = _player,
+                summaryData = summaryData,
+                enemies     = _enemies,
+                onRevive    = function()
+                    StateManager.pop()
+                    -- 复活：减少次数，清场，施加无敌
+                    _player._revives = _player._revives - 1
+                    _player.hp = _player.maxHp
+                    _player._isDead = false   -- 重置死亡标记
+                    -- 清除玩家周围的敌人
+                    local clearRadius = 200
+                    for i = #_enemies, 1, -1 do
+                        local e = _enemies[i]
+                        local dx = e.x - _player.x
+                        local dy = e.y - _player.y
+                        if math.sqrt(dx*dx + dy*dy) <= clearRadius then
+                            e._isDead = true
+                        end
+                    end
+                    -- 施加无敌帧（简化版，Phase 10.1 改为 Buff 管理器）
+                    _player._invincibleTimer = 3.0
+                    Log.info("玩家复活！剩余复活次数：" .. _player._revives)
+                end,
+                onLegacy    = function()
+                    StateManager.pop()
+                    -- 选择传承：进入传承三选一界面
+                    StateManager.push("legacySelect", {
+                        player      = _player,
+                        summaryData = summaryData,
+                        activeSynergies = _player:getBag()._activeSynergies or {},
+                        onDone      = function()
+                            StateManager.pop()
+                            StateManager.switch("gameover", summaryData)
+                        end,
+                    })
+                end,
+            })
+        else
+            -- 无复活机会：直接跳转死亡结算
+            StateManager.switch("gameover", summaryData)
+        end
         return
     end
 
@@ -357,7 +438,15 @@ function Game:update(dt)
         _victoryTimer = _victoryTimer - dt
         if _victoryTimer <= 0 then
             local StateManager = require("src.states.stateManager")
-            StateManager.switch("gameover", { isVictory = true })
+            StateManager.switch("gameover", {
+                isVictory    = true,
+                elapsed      = _rhythm:getElapsed(),
+                level        = _player:getLevel(),
+                killCount    = _killCount,
+                souls        = _player:getSouls(),
+                activeSynergies = _player:getBag()._activeSynergies or {},
+                killedBosses = _killedBosses,
+            })
             return   -- 切换状态后立即返回，避免访问已被 exit() 清空的状态
         end
         -- 胜利状态：不再更新敌人/生成，直接进入最终清理和跳转
@@ -888,6 +977,9 @@ function Game._drawSkillBar()
     end
 
     Font.reset()
+
+    -- Phase 10：技能槽右侧显示传承圆形图标
+    Game._drawLegacyIcon(baseX + totalSlotsW + 10, startY, slotH)
 end
 
 -- Phase 9：绘制游戏计时器和节奏阶段（右上角，羁绊列表旁）
@@ -1118,6 +1210,56 @@ function Game._triggerLevelUp()
             newLevel = _player:getLevel(),
         }
     end
+end
+
+-- Phase 10：绘制传承圆形图标（技能槽右侧）
+-- @param x: 图标左边缘 X
+-- @param y: 图标顶部 Y
+-- @param h: 与技能槽同高
+function Game._drawLegacyIcon(x, y, h)
+    if not _player then return end
+
+    local radius = h / 2
+    local cx     = x + radius
+    local cy     = y + radius
+
+    local legacy = _player._legacyData
+
+    if legacy then
+        -- 有传承：金色圆形，显示传承图标
+        -- 外光圈
+        love.graphics.setColor(1.0, 0.85, 0.2, 0.2)
+        love.graphics.circle("fill", cx, cy, radius + 4)
+        -- 圆背景
+        love.graphics.setColor(0.18, 0.14, 0.04, 0.95)
+        love.graphics.circle("fill", cx, cy, radius)
+        -- 金色边框
+        love.graphics.setColor(1.0, 0.85, 0.2, 0.9)
+        love.graphics.setLineWidth(2)
+        love.graphics.circle("line", cx, cy, radius)
+        love.graphics.setLineWidth(1)
+        -- 「传」字
+        Font.set(16)
+        love.graphics.setColor(1.0, 0.85, 0.2)
+        love.graphics.printf("传", cx - radius, cy - 11, radius * 2, "center")
+        -- 悬停文字（固定显示传承名）
+        Font.set(11)
+        love.graphics.setColor(1.0, 0.95, 0.7, 0.9)
+        love.graphics.printf(T(legacy.nameKey), cx - 50, cy + radius + 4, 100, "center")
+    else
+        -- 无传承：灰色空圆
+        love.graphics.setColor(0.12, 0.12, 0.14, 0.85)
+        love.graphics.circle("fill", cx, cy, radius)
+        love.graphics.setColor(0.3, 0.3, 0.33, 0.7)
+        love.graphics.setLineWidth(1)
+        love.graphics.circle("line", cx, cy, radius)
+        Font.set(11)
+        love.graphics.setColor(0.4, 0.4, 0.4)
+        love.graphics.printf(T("hud.legacy_none"), cx - 40, cy + radius + 3, 80, "center")
+    end
+
+    Font.reset()
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 -- Phase 9：触发胜利（供控制台 win 指令使用）

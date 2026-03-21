@@ -4,6 +4,42 @@
 
 ---
 
+## [2026-03-22] Phase 10 — 结算、传承与复活
+
+**做了什么：**
+
+### 新增文件
+| 文件 | 内容 |
+|------|------|
+| `src/states/reviveUI.lua` | 复活/传承二选一全屏暂停界面（push 叠加），左右键选择，Enter 确认 |
+| `src/states/legacySelect.lua` | 传承技能三选一界面，按激活羁绊匹配池，Enter 保存传承，跳转结算 |
+| `src/systems/legacyManager.lua` | 传承读写（legacy.json）、池匹配抽取、下局应用到 player |
+| `config/legacy.lua` | 12 个传承技能候选池，按大类（伤害/科技/生存/爆发/经济）分类 |
+| `.claude/commands/phase-start.md` | Claude Code 自定义 skill：Phase 开始准备流程 |
+| `.claude/commands/phase-end.md` | Claude Code 自定义 skill：Phase 收尾（DEVLOG + Git）|
+| `.claude/commands/bug-check.md` | Claude Code 自定义 skill：快速检查待处理 Bug |
+| `.claude/commands/brainstorm.md` | Claude Code 自定义 skill：QA 头脑风暴会议，生成会议 MD |
+
+### 修改文件
+| 文件 | 内容 |
+|------|------|
+| `src/states/gameover.lua` | 完全重写：胜利/死亡两套视觉，逐条动画（滑入+数字滚动），按任意键继续 |
+| `src/states/game.lua` | 新增 `_killCount`/`_killedBosses` 统计，死亡走复活→传承→结算新流程，胜利传入统计数据 |
+| `src/entities/player.lua` | `_revives=1`、`_invincibleTimer`、传承字段、override `takeDamage` 加无敌判断、构造时调用 `LegacyManager.applyToPlayer` |
+| `main.lua` | 注册 `reviveUI`、`legacySelect` 两个新状态 |
+| `config/i18n/zh.lua` | 补全：结算统计项、复活界面、传承三选一、传承技能名称描述（12个）、HUD 传承图标文本 |
+
+### 功能说明
+- **结算动画**：数据逐条以 0.4s 间隔滑入，数字用 ease-out 曲线滚动到目标值；胜利（金色/深绿背景）与死亡（红色/深暗背景）完全不同设计；全部出现后才可按任意键退出
+- **复活机制**：每局 1 次，死亡时弹出二选一界面（push 叠加不破坏游戏状态）；选「复活」→ 减次数、满血、清场半径 200px、无敌 3 秒；选「传承」→ 进入传承三选一；复活次数耗尽直接跳死亡结算
+- **传承系统**：按本局激活羁绊的 Tag 大类匹配候选池，Fisher-Yates 抽 3 张卡；每局只有 1 个传承槽（新覆盖旧）；胜利不触发传承；传承在 `Player.new()` 时自动从 `legacy.json` 应用到基础属性
+- **HUD 传承图标**：技能槽右侧圆形图标，有传承时金色显示「传」字和传承名，无传承时灰色空圆
+- **无敌帧**：简化版 `_invincibleTimer`（Phase 10.1 改为 Buff 管理器），`Player:takeDamage` override 期间免疫伤害
+
+**测试：** 115 passed, 0 failed
+
+---
+
 ## [2026-03-22] Phase 9 收尾 — Bug 修复 + 胜利界面完善
 
 **做了什么：**

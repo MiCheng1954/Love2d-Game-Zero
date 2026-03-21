@@ -9,6 +9,7 @@ local Input        = require("src.systems.input")
 local Bag          = require("src.systems.bag")
 local Weapon       = require("src.entities.weapon")
 local SkillManager = require("src.systems.skillManager")
+local LegacyManager = require("src.systems.legacyManager")   -- Phase 10
 
 local Player = setmetatable({}, { __index = Entity })
 Player.__index = Player
@@ -36,7 +37,19 @@ function Player.new(x, y)
     self._exp         = 0     -- 当前经验值
     self._expToNext   = 100   -- 升级所需经验值
     self._souls       = 0     -- 当前持有灵魂数量
-    self._revives     = 1     -- 剩余复活次数
+    self._revives     = 1     -- 剩余复活次数（Phase 10）
+
+    -- Phase 10：传承相关字段（下局开始时由 LegacyManager 应用）
+    self._hasLegacy         = false   -- 是否携带传承
+    self._legacyData        = nil     -- 传承数据
+    self._legacyBulletSpeed = 0       -- 传承弹速加成（game.lua 累加到 mergedPsb）
+    self._legacyCdReduce    = 0       -- 传承 CD 缩短（同上）
+    self._legacyAttackSpeed = 0       -- 传承射速加成（武器乘数）
+    self._legacyExpMult     = 0       -- 传承经验倍率加成
+    self._legacySoulsMult   = 0       -- 传承灵魂获取倍率
+
+    -- Phase 10：无敌帧（简化版，Phase 10.1 改为 Buff 管理器）
+    self._invincibleTimer   = 0
 
     -- 战斗属性（Phase 8 补全）
     self.attack       = 10    -- 基础攻击力
@@ -68,6 +81,9 @@ function Player.new(x, y)
     local pistol = Weapon.new("pistol")
     self._bag:place(pistol, 1, 1)
 
+    -- Phase 10：应用上局传承效果（若有）
+    LegacyManager.applyToPlayer(self)
+
     return self
 end
 
@@ -76,6 +92,14 @@ end
 -- @param extraSpeed: 额外移动速度加成（来自羁绊，可选）
 function Player:update(dt, extraSpeed)
     self:_handleMovement(dt, extraSpeed)
+
+    -- Phase 10：无敌帧倒计时
+    if self._invincibleTimer and self._invincibleTimer > 0 then
+        self._invincibleTimer = self._invincibleTimer - dt
+        if self._invincibleTimer < 0 then
+            self._invincibleTimer = 0
+        end
+    end
 end
 
 -- 处理玩家移动逻辑
@@ -162,7 +186,20 @@ end
 -- 死亡时回调，覆盖基类实现
 function Player:onDeath()
     self._isDead = true
-    -- TODO: Phase 10 接入传承系统与复活逻辑
+    -- Phase 10：死亡流程由 game.lua 检测 isDead() 后处理（复活/传承）
+end
+
+-- Phase 10：覆盖 takeDamage，加入无敌帧检查
+-- @param amount: 原始伤害值
+-- @param isCrit: 是否暴击
+-- @return 实际造成伤害值
+function Player:takeDamage(amount, isCrit)
+    -- 无敌帧期间免疫所有伤害
+    if self._invincibleTimer and self._invincibleTimer > 0 then
+        return 0
+    end
+    -- 委托给基类计算
+    return Entity.takeDamage(self, amount, isCrit)
 end
 
 -- 获取当前等级

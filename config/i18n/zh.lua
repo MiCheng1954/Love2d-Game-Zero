@@ -288,4 +288,79 @@ return {
     -- Phase 9：胜利文本
     ["hud.victory"]         = "★  胜利！  ★",
     ["hud.victory_hint"]    = "你击败了虚空领主，世界得救了！",
+
+    -- ============================================================
+    -- Phase 10：结算、传承与复活
+    -- ============================================================
+
+    -- 结算界面（胜利）
+    ["gameover.victory_title"]      = "★  VICTORY  ★",
+    ["gameover.victory_sub"]        = "你击败了虚空领主，世界得救了！",
+    ["gameover.hint"]               = "按任意键返回菜单",
+
+    -- 结算界面（死亡）
+    ["gameover.title"]              = "GAME OVER",
+    ["gameover.death_sub"]          = "你在战斗中倒下了……",
+
+    -- 结算统计项标签
+    ["gameover.stat.elapsed"]       = "存活时长",
+    ["gameover.stat.level"]         = "最终等级",
+    ["gameover.stat.kills"]         = "总击杀数",
+    ["gameover.stat.souls"]         = "收集灵魂",
+    ["gameover.stat.synergies"]     = "激活羁绊",
+    ["gameover.stat.bosses"]        = "击杀Boss",
+    ["gameover.stat.none"]          = "（无）",
+
+    -- 复活/传承二选一界面
+    ["revive.title"]                = "⚠  你已倒下",
+    ["revive.subtitle"]             = "还有机会……",
+    ["revive.revive"]               = "复活",
+    ["revive.legacy"]               = "传承",
+    ["revive.revive_desc"]          = "消耗 1 次复活机会\n恢复满血，清除周围敌人\n获得 3 秒无敌时间",
+    ["revive.legacy_desc"]          = "放弃本局，选择一项传承\n效果延续到下一局",
+    ["revive.remaining"]            = "剩余复活次数：%d",
+    ["revive.hint"]                 = "← → 切换选项   Enter 确认",
+
+    -- 传承三选一界面
+    ["legacy_select.title"]         = "◈  选择传承  ◈",
+    ["legacy_select.subtitle"]      = "你的牺牲将延续下去……",
+    ["legacy_select.hint"]          = "← → 切换卡片   Enter 确认",
+    ["legacy_select.category"]      = "类别：%s",
+
+    -- 传承类别名
+    ["legacy.cat.伤害"]             = "伤害",
+    ["legacy.cat.科技"]             = "科技",
+    ["legacy.cat.生存"]             = "生存",
+    ["legacy.cat.爆发"]             = "爆发",
+    ["legacy.cat.经济"]             = "经济",
+
+    -- 传承技能名称与描述
+    ["legacy.attack.name"]          = "战意传承",
+    ["legacy.attack.desc"]          = "攻击力永久 +8",
+    ["legacy.crit_rate.name"]       = "暴击传承",
+    ["legacy.crit_rate.desc"]       = "暴击率永久 +5%",
+    ["legacy.crit_dmg.name"]        = "致命传承",
+    ["legacy.crit_dmg.desc"]        = "暴击伤害永久 +20%",
+    ["legacy.bullet_speed.name"]    = "弹道传承",
+    ["legacy.bullet_speed.desc"]    = "弹速永久 +40",
+    ["legacy.cooldown.name"]        = "冷却传承",
+    ["legacy.cooldown.desc"]        = "所有技能 CD 缩短 10%",
+    ["legacy.attack_speed.name"]    = "射速传承",
+    ["legacy.attack_speed.desc"]    = "武器射速永久 +10%",
+    ["legacy.hp.name"]              = "生命传承",
+    ["legacy.hp.desc"]              = "最大 HP 永久 +30",
+    ["legacy.defense.name"]         = "护甲传承",
+    ["legacy.defense.desc"]         = "防御力永久 +3%",
+    ["legacy.speed.name"]           = "疾步传承",
+    ["legacy.speed.desc"]           = "移速永久 +15",
+    ["legacy.exp.name"]             = "智慧传承",
+    ["legacy.exp.desc"]             = "经验获取永久 +20%",
+    ["legacy.pickup.name"]          = "引力传承",
+    ["legacy.pickup.desc"]          = "拾取范围永久 +40",
+    ["legacy.souls.name"]           = "灵魂传承",
+    ["legacy.souls.desc"]           = "灵魂获取永久 +20%",
+
+    -- HUD：传承图标悬停文字
+    ["hud.legacy_icon"]             = "传承",
+    ["hud.legacy_none"]             = "（无传承）",
 }
