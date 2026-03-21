@@ -443,3 +443,179 @@ zero/
 - **`test_fusion.lua` 新增 Bug#19 专项**：6 个用例，验证三把融合武器正确尺寸，并反向确认旧算法确实有误
 - **最终测试成绩：86 passed, 0 failed**
 
+---
+
+## [2026-03-21] Phase 8 — 技能系统（完整实装）
+
+**做了什么：** 实装完整的技能体系（主动/事件被动/纯被动/角色专属），包含技能槽位制、视觉特效、HUD 技能栏、背包技能面板、技能羁绊，以及 Bug #20-#29、需求 #1-#7 全量修复。
+
+### 核心架构
+
+#### 技能分类（共 20 个）
+- **主动（6）**：dash(空格)、time_slow(Q)、bomb_throw(E)、blink(Q)、battle_cry(F)、mana_shield(F)
+- **事件被动-定时（3）**：emp_burst(12s)、heal_pulse(15s)、ammo_supply(10s)
+- **事件被动-击杀（2）**：explosion(每5击杀)、soul_drain(每3击杀)
+- **事件被动-受伤（3）**：counter_shot(CD10s)、rage(CD20s)、thorns(CD8s)
+- **纯被动（5）**：iron_body、swift_feet、sharpshooter、energy_field、iron_will
+- **角色专属（1）**：overload(F，default角色)
+
+#### 槽位制设计
+- `slotType="dash"` → skill1(空格)，`slotType="exclusive"` → skill4(F)，`slotType="active"` → cfg.key 直接定向（skill2=Q 或 skill3=E）
+- `add()` 返回：`true`=成功，`false`=失败，`{conflict=true,...}`=槽位冲突，`{passiveFull=true,...}`=被动满（需求7已移除上限）
+- `resolveSlot()` 直接用 `cfg.key` 定向，不再顺序填充（修复 Bug #21/#24）
+
+#### 全局减速状态（Bug #20）
+- `SkillManager._globalSlowActive/_globalSlowRate/_globalSlowTimer`
+- `setGlobalSlow(rate, duration)` / `getGlobalSlow()` — 供技能 effect 设置，供 Spawner 新敌人查询
+
+### 新建文件
+
+#### `config/skills.lua`
+20 个技能完整配置，含 type/slotType/key/cooldown/trigger/tag/characterId/effect/passive/levelBonus。
+
+#### `config/skill_synergies.lua`
+4 个技能 tag 羁绊（防御/爆发/辅助/精准），每档含 tiers 数组，格式同 synergies.lua。
+
+#### `src/systems/skillManager.lua`
+- `new()`：初始化 `_slots={skill1~4}`、`_passives=[]`、全局减速状态、`_firedThisFrame=[]`
+- `add(skillId, player)`：角色校验 → 槽位路由 → 冲突检测 → 插入/升级
+- `tryActivate(slotKey, player, ctx, cdReduce)`：CD 检测 → 触发 effect → 重置计时
+- `update(dt, player, ctx, cdReduce)`：推进 CD/充能计时器；触发 passive_timed；衰减 buff(battleCry/rage/overload/shield/soulDrain)；减速恢复；全局减速衰减；每帧清空 `_firedThisFrame` 并记录触发的被动技能
+- `onKill(player, enemy, ctx)`：passive_onkill 击杀计数，满阈值触发 effect
+- `onHit(player, dmg, ctx)`：passive_onhit CD 检测，触发 effect
+- `recalcPassive(psb)`：纯被动每帧写入 psb
+- `getCooldownRatio(skillId)`：支持 active(CD进度)、passive_onhit(CD进度)、passive_timed(充能进度)
+- `setGlobalSlow/getGlobalSlow`：全局减速状态管理
+
+#### `src/systems/skillSynergy.lua`
+统计 `skillTagCounts` → 找最高满足档位 → 累加 psb → 返回 activeSynergies。
+
+#### `src/systems/skillEffects.lua`（需求1）
+视觉特效系统：`spawn(skillId, player, ctx)` / `update(dt)` / `draw(camX, camY)` / `drawScreenEffects()` / `clear()`
+- 世界特效：trail(冲刺拖尾)、ring_expand(爆炸/闪现/战吼/治疗)、orbit_ring(护盾)
+- 屏幕特效：screen_flash(减速/超载/狂怒)
+
+#### `src/states/skillSelectUI.lua`
+技能升级选择界面，展示 3 个候选（名称/描述/当前等级/"NEW"），Enter 确认，ESC 取消，push/pop 覆盖层。
+
+#### `src/states/skillConflictUI.lua`
+槽位冲突时弹出，左右对比展示旧技能和新技能，← → 选择保留/替换，Enter 确认，ESC = 保留旧技能。
+
+### 修改文件
+
+#### `src/entities/player.lua`
+- 新增战斗属性：`attack=10, critRate=0.05, critDamage=1.5, defense=0`
+- 新增角色标识：`characterId="default"`
+- 新增方向缓存：`_lastDx=1, _lastDy=0`（静止时保持最后移动方向，供技能瞄准用，修复 Bug #29）
+- `_handleMovement()`：有输入时同步更新 `_lastDx/_lastDy`
+- 挂载 `_skillManager = SkillManager.new()`，新增 `getSkillManager()`
+
+#### `src/entities/entity.lua`
+- `takeDamage()`：defense < 1 时作百分比减免；新增 `_dropProcessed=false` 通过 Enemy 子类标记（修复 Bug #28）
+
+#### `src/entities/enemy.lua`
+- `onDeath()`：新增 `_dropProcessed = false`，标记掉落物尚未被游戏主循环处理
+
+#### `src/systems/spawner.lua`
+- 新增 `setSkillManager(sm)` 接口
+- `_spawnOne()` 新敌人生成后查询 `getGlobalSlow()`，若全局减速激活则同步施加减速（修复 Bug #20）
+
+#### `src/systems/input.lua`
+- 新增 skill1(空格)/skill2(q)/skill3(e)/skill4(f) 动作映射
+
+#### `src/states/game.lua`
+- `enter()`：`_spawner:setSkillManager(sm)` 接入全局减速
+- `update()`：合并技能 psb → mergedPsb；技能 ctx 使用 `_lastDx/_lastDy`；`sm:update()` 后遍历 `_firedThisFrame` 触发 FX；扫描 `_dropProcessed==false` 的死亡敌人补全掉落流水线（修复 Bug #28）；`FX.update(dt)`
+- `draw()`：`FX.draw(0,0)`（世界坐标）+ `FX.drawScreenEffects()`（屏幕坐标）
+- `keypressed()`：skill1~4 按键 → `sm:tryActivate()` → 成功时 `FX.spawn()`；技能 ctx 使用 `_lastDx/_lastDy`
+- `_drawSkillBar()`（需求2/3）：左下角 4 个主动槽框（按键标签+技能名+CD进度条）+ 被动列表（定时被动/onhit被动含充能进度条，修复 Bug #22）
+- TAB 打开背包传入 `player=_player` 供技能面板使用
+
+#### `src/states/bagUI.lua`
+- `enter(data)`：存储 `self._player`
+- 新增 `_drawSkillList()`（需求4）：显示所有主动槽（按键+名称+等级+描述）+ 被动列表，位于详情面板下方
+
+#### `config/upgrades.lua`
+- 技能大类 `skill_get` 实装：`canShow` 检测技能池可用项，`apply` 随机抽 3 个推入 skillSelectUI；处理 conflict 时推入 skillConflictUI
+
+#### `src/states/console.lua`
+- `skill <id>`：`sm:add()` 结构化返回处理；conflict 时强制 replaceSlot；`skill list` 列出所有技能 id
+
+#### `config/i18n/zh.lua`
+- 新增：20 个技能 name/desc；4 个技能 tag 显示名；4 个技能羁绊 name/desc（T2/T3）；技能栏 HUD key；升级界面 skill_get key；需求5修改：被动描述改为"被动："前缀
+
+### Bug 修复汇总（本 Phase）
+
+| Bug | 描述 | 修复方案 |
+|-----|------|---------|
+| #20 | 全屏减速对新生成敌人无效 | Spawner 查询 SkillManager.getGlobalSlow() 施加初始减速 |
+| #21/#24 | 技能槽按获取顺序填充而非按 cfg.key | resolveSlot() 改为直接用 cfg.key 定向 |
+| #22 | 定时被动无充能 UI | getCooldownRatio() 支持 passive_timed，HUD 显示充能进度条 |
+| #23 | bomb_throw 描述说 E 但落在 Q 槽 | 根本原因同 #21/#24，随 resolveSlot 修复 |
+| #26 | 被动技能触发无视觉效果 | _firedThisFrame 机制 + game.lua 遍历调用 FX.spawn() |
+| #28 | 被技能打死的敌人不掉落 | enemy._dropProcessed 标记 + game.lua 扫描补全掉落流水线 |
+| #29 | 指向性技能不用最后移动方向 | player._lastDx/_lastDy 缓存 + 技能 ctx 改用最后方向 |
+
+### 需求完成汇总
+
+| 需求 | 描述 | 实现 |
+|------|------|------|
+| #1 | 技能释放视觉效果 | skillEffects.lua 几何特效系统 |
+| #2 | HUD 显示技能 | _drawSkillBar() 左下角 4 槽 + 被动列表 |
+| #3 | 技能槽按键对应 | 槽位制 + resolveSlot() |
+| #4 | 背包显示技能描述 | bagUI._drawSkillList() |
+| #5 | 被动描述改为"被动:" | i18n zh.lua 全部被动 desc 更新 |
+| #6 | 技能槽冲突让玩家选择 | skillConflictUI 弹窗 |
+| #7 | 被动技能不设上限 | 移除 MAX_PASSIVES 检查 |
+
+### 自动化钩子
+
+#### `.claude/check_pending.py` + `settings.local.json`
+- `UserPromptSubmit` 钩子：每次冰冰发送消息时自动扫描 bugs.json/features.json 的 pending 条目
+- 若有待处理条目则注入 additionalContext，触发 Claude 立即开始处理
+- 使用 `python -X utf8` 保证 Windows 下中文正常输出
+
+### 测试成绩
+**最终：115 passed, 0 failed**（新增 29 个 test_skillManager 用例）
+
+---
+
+## [2026-03-21] Phase 8 后续 — 背包技能面板重设计 & Bug #30-#31 修复
+
+**做了什么：** 将背包界面的技能展示从"武器详情下方附加列表"完整重设计为独立的技能面板，支持 Q/E 键切换；修复 2 个遗留 Bug；新增一键启动脚本。
+
+### 背包界面技能面板重设计
+
+#### 面板切换机制（Q/E 键）
+- **Q 键** → 武器面板（背包网格 + 右侧武器详情，与原有布局完全一致）
+- **E 键** → 技能面板（背包网格隐藏，技能面板撑满整个内容区）
+- PLACE / SELECT / FUSION 模式强制显示武器面板，不受 Q/E 影响
+- Tab 标签栏固定在内容区左上角（`GRID_X` 位置），当前选中高亮紫色
+
+#### 技能面板布局（全宽）
+- **左列（220px）**：技能列表，按主动槽（空格/Q/E/F）→ 被动的顺序排列；方向键上下导航，选中项高亮背景 + 紫色边框；右侧显示按键小标签（`[空格]`/`[Q]`/`[被动]` 等）
+- **竖分割线**：列表与详情之间
+- **右列（余宽）**：选中技能完整详情
+  - 技能名（紫色大字）+ 类型标签 + 对应按键
+  - 技能描述（灰色，自动换行）
+  - 等级（当前/最大）
+  - 冷却时间 / 自动触发间隔 / 击杀触发次数（按类型显示对应字段）
+  - 纯被动：显示当前等级实际加成数值
+  - 升级预览（未满级时显示下一级加成）
+  - 角色专属标记
+- **无技能时**：显示友好提示文字，不报错、不隐藏面板
+
+#### 修复：操作提示中文乱码
+- **原因**：`_drawSkillPanel()` 末尾 `Font.reset()` 重置为默认字体（不支持中文），`_drawHint()` 接着渲染中文导致乱码
+- **修复**：`_drawHint()` 自带 `Font.set(13)` / `Font.reset()` 成对调用，不依赖外部字体状态；技能面板模式下提示文字单独显示对应操作说明
+
+### Bug 修复
+
+| Bug | 描述 | 修复方案 |
+|-----|------|---------|
+| #30 | 游戏开始无技能时左下角技能栏不显示 | 移除 `_drawSkillBar()` 中无技能时的 `return`，始终绘制 4 个空槽框 |
+| #31 | 背包页面技能详情不显示 | ① TAB 打开背包时补传 `player=_player`；② `_drawSkillList()` 内局部变量 `GRID_X/CELL_SIZE` 与模块常量冲突，改用模块顶部常量 |
+
+### 一键启动脚本
+- 新建 `run.bat`：自动探测多个常见路径的 `love.exe`，优先使用 `D:\WorkSpace_Love2d\Engine\LOVE\love.exe`，找不到时给出友好提示；双击即可启动游戏
+

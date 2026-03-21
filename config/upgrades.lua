@@ -269,16 +269,53 @@ local UpgradeConfig = {
                 if ctx and ctx.onWeaponDrop then
                     -- 复用 deferred 机制：告知 upgrade.lua 流程由 skillSelectUI 接管
                     local StateManager = require("src.states.stateManager")
+
+                    -- 处理技能获取结果（支持槽位冲突 UI）
+                    local function handleSkillResult(skillId, result)
+                        if result == true then
+                            Log.info("获得/升级技能: " .. skillId .. " Lv" .. sm:getLevel(skillId))
+                            StateManager.pop()           -- pop skillSelectUI
+                            if ctx.onDone then ctx.onDone() end
+                        elseif type(result) == "table" and result.conflict then
+                            -- 主动技能槽位冲突 → 弹出冲突选择 UI
+                            StateManager.push("skillConflictUI", {
+                                player   = player,
+                                slot     = result.slot,
+                                existing = result.existing,
+                                incoming = result.incoming,
+                                onKeep   = function()
+                                    -- 保留旧技能，不替换
+                                    StateManager.pop()   -- pop conflict UI
+                                    StateManager.pop()   -- pop skillSelectUI
+                                    if ctx.onDone then ctx.onDone() end
+                                end,
+                                onReplace = function(slot, incomingId)
+                                    -- 替换旧技能
+                                    sm:replaceSlot(slot, incomingId)
+                                    Log.info("替换技能槽 " .. slot .. " -> " .. incomingId)
+                                    StateManager.pop()   -- pop conflict UI
+                                    StateManager.pop()   -- pop skillSelectUI
+                                    if ctx.onDone then ctx.onDone() end
+                                end,
+                            })
+                        elseif type(result) == "table" and result.passiveFull then
+                            -- 被动上限冲突 → TODO Phase 8.x 实装被动替换 UI；暂时跳过
+                            Log.info("被动上限已满，无法获得技能: " .. skillId)
+                            StateManager.pop()           -- pop skillSelectUI
+                            if ctx.onDone then ctx.onDone() end
+                        else
+                            -- 其他失败（满级 / 角色不匹配）
+                            StateManager.pop()
+                            if ctx.onDone then ctx.onDone() end
+                        end
+                    end
+
                     StateManager.push("skillSelectUI", {
                         player     = player,
                         candidates = candidates,
                         onSelect   = function(skillId)
-                            local ok = sm:add(skillId, player)
-                            if ok then
-                                Log.info("获得/升级技能: " .. skillId .. " Lv" .. sm:getLevel(skillId))
-                            end
-                            StateManager.pop()           -- pop skillSelectUI
-                            if ctx.onDone then ctx.onDone() end  -- pop upgrade
+                            local result = sm:add(skillId, player)
+                            handleSkillResult(skillId, result)
                         end,
                         onCancel = function()
                             StateManager.pop()           -- pop skillSelectUI

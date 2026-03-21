@@ -13,6 +13,7 @@ local Collision  = require("src.systems.collision")
 local Spawner    = require("src.systems.spawner")
 local Experience = require("src.systems.experience")
 local SkillSynergy = require("src.systems.skillSynergy")
+local FX           = require("src.systems.skillEffects")   -- Phase 8 需求1
 local Player     = require("src.entities.player")
 local Projectile = require("src.entities.projectile")
 local Weapon     = require("src.entities.weapon")
@@ -69,6 +70,7 @@ function Game:enter()
     -- 初始化生成系统
     _spawner = Spawner.new(_enemies)
     _spawner:setTarget(_player)
+    _spawner:setSkillManager(_player:getSkillManager())  -- Bug#20：传入技能管理器
 
     -- 初始化经验系统，注册升级回调
     _experience = Experience.new(_player)
@@ -92,6 +94,7 @@ function Game:exit()
     _experience      = nil
     _pendingUpgrade  = nil
     _fallbackTimer   = 0
+    FX.clear()   -- 需求1：清除所有视觉特效
 end
 
 -- 每帧更新游戏逻辑
@@ -112,6 +115,7 @@ function Game:update(dt)
             local StateManager = require("src.states.stateManager")
             StateManager.push("bagUI", {
                 bag     = _player:getBag(),
+                player  = _player,          -- 需求4：传入 player 供技能列表展示
                 mode    = "browse",
                 onClose = function() StateManager.pop() end,
             })
@@ -168,13 +172,19 @@ function Game:update(dt)
 
     -- Phase 8：更新技能系统（定时触发、持续 buff 衰减等）
     local skillCtx = {
-        dx          = _player._dx,
-        dy          = _player._dy,
-        enemies     = _enemies,
-        projectiles = _projectiles,
-        bag         = _player:getBag(),
+        dx           = _player._lastDx or _player._dx,   -- Bug#29：用最后移动方向
+        dy           = _player._lastDy or _player._dy,
+        enemies      = _enemies,
+        projectiles  = _projectiles,
+        bag          = _player:getBag(),
+        skillManager = sm,    -- Bug#20：让技能 effect 能调用 setGlobalSlow
     }
     sm:update(dt, _player, skillCtx, mergedPsb.cdReduce)
+    -- Bug#26：被动技能触发视觉效果
+    for _, firedId in ipairs(sm._firedThisFrame or {}) do
+        FX.spawn(firedId, _player, skillCtx)
+    end
+    FX.update(dt)   -- 需求1：更新技能视觉特效
 
     -- 更新升级提示倒计时
     if _levelUpNotice.active then
@@ -219,6 +229,26 @@ function Game:update(dt)
         sm:onKill(_player, killData.enemy, skillCtx)
     end
 
+    -- Bug#28：扫描被技能 AOE 打死但未走击杀流水线的敌人，补全掉落和 onKill 事件
+    local Pickup = require("src.entities.pickup")
+    for _, enemy in ipairs(_enemies) do
+        if enemy._isDead and enemy._dropProcessed == false then
+            enemy._dropProcessed = true
+            -- 手动生成掉落（复用 enemy 的配置值，避免重复调用 onDeath）
+            if enemy._expDrop and enemy._expDrop > 0 then
+                table.insert(_pickups, Pickup.new(enemy.x, enemy.y, Pickup.TYPE.EXP, enemy._expDrop))
+            end
+            if enemy._soulDrop and enemy._soulDrop > 0 then
+                table.insert(_pickups, Pickup.new(
+                    enemy.x + math.random(-10, 10),
+                    enemy.y + math.random(-10, 10),
+                    Pickup.TYPE.SOUL, enemy._soulDrop))
+            end
+            -- 通知技能系统击杀事件（触发 onkill 被动技能）
+            sm:onKill(_player, enemy, skillCtx)
+        end
+    end
+
     -- 碰撞检测：敌人 vs 玩家（Phase 8：收集伤害量并通知 onHit）
     local playerDmgTaken = Collision.enemiesVsPlayer(_enemies, _player)
     if playerDmgTaken and playerDmgTaken > 0 then
@@ -247,6 +277,7 @@ function Game:update(dt)
         local StateManager = require("src.states.stateManager")
         StateManager.push("bagUI", {
             bag     = _player:getBag(),
+            player  = _player,          -- Bug#31：传入 player 供技能列表展示
             mode    = "browse",
             onClose = function()
                 StateManager.pop()
@@ -432,9 +463,14 @@ function Game:draw()
     -- 绘制玩家（最上层）
     _player:draw()
 
+    -- 需求1：绘制技能视觉特效（世界坐标系，在玩家之上，screen_flash 除外）
+    FX.draw(0, 0)  -- 已在 camera:attach() 内，世界坐标直接使用
+
     _camera:detach()
 
     -- == UI 层（屏幕坐标系）==
+    -- 需求1：全屏闪烁特效（需在 camera 坐标之外）
+    FX.drawScreenEffects()
     Game._drawHUD()
 end
 
@@ -568,24 +604,11 @@ function Game._drawHUD()
     Game._drawDebugPanel()
 end
 
--- Phase 8：绘制左下角技能栏
+-- Phase 8：绘制左下角技能栏（需求2：4个主动槽 + 被动列表）
 function Game._drawSkillBar()
     if not _player then return end
     local sm = _player:getSkillManager()
-    local skillList = sm:getSortedList()
-    if #skillList == 0 then return end
 
-    -- 只显示主动技能和 passive_onhit（有 CD 概念的）
-    local shown = {}
-    for _, entry in ipairs(skillList) do
-        local cfg = entry.inst.cfg
-        if cfg.type == "active" or cfg.type == "passive_onhit" then
-            table.insert(shown, entry)
-        end
-    end
-    if #shown == 0 then return end
-
-    local SkillConfig = require("config.skills")
     local bag = _player:getBag()
     local psb = bag._playerSynergyBonus or {}
     local skillPsb = {}
@@ -593,61 +616,132 @@ function Game._drawSkillBar()
     SkillSynergy.recalculate(sm, skillPsb)
     local cdReduce = (psb.cdReduce or 0) + (skillPsb.cdReduce or 0)
 
+    -- Bug#30：始终绘制技能槽框，无技能时显示空槽
+    local slots    = sm._slots
+    local passives = sm:getPassives()
+
     Font.set(12)
+
+    -- 布局参数
     local baseX = 20
-    local baseY = 620
-    local barW  = 120
-    local barH  = 8
-    local lh    = 28
+    local slotW = 58
+    local slotH = 54
+    local slotGap = 6
+    local startY = 640   -- 底部留出一点边距
 
-    -- 背景面板
-    love.graphics.setColor(0, 0, 0, 0.6)
-    love.graphics.rectangle("fill", baseX - 4, baseY - 16, 260, lh * #shown + 20, 4, 4)
+    -- ============ 绘制 4 个主动技能槽 ============
+    local slotOrder = { "skill1", "skill2", "skill3", "skill4" }
+    local slotKeys  = { skill1="空格", skill2="Q", skill3="E", skill4="F" }
 
-    love.graphics.setColor(0.7, 0.3, 1.0)
-    love.graphics.print(T("hud.skills"), baseX, baseY - 12)
+    local totalSlotsW = slotW * 4 + slotGap * 3
+    -- 背景
+    love.graphics.setColor(0, 0, 0, 0.55)
+    love.graphics.rectangle("fill", baseX - 4, startY - 4, totalSlotsW + 8, slotH + 8, 4, 4)
 
-    for i, entry in ipairs(shown) do
-        local id   = entry.id
-        local inst = entry.inst
-        local cfg  = inst.cfg
-        local y    = baseY + (i - 1) * lh + 4
+    for i, slotKey in ipairs(slotOrder) do
+        local inst = slots[slotKey]
+        local x = baseX + (i - 1) * (slotW + slotGap)
+        local y = startY
 
-        local ratio = sm:getCooldownRatio(id, cdReduce)
-        local ready = ratio >= 1.0
-
-        -- 按键标签
-        local keyLabel = ""
-        if cfg.key == "skill1" then keyLabel = "[空格]"
-        elseif cfg.key == "skill2" then keyLabel = "[Q]"
-        elseif cfg.key == "skill3" then keyLabel = "[E]"
-        elseif cfg.key == "skill4" then keyLabel = "[F]"
-        end
-
-        -- 技能名称
-        if ready then
-            love.graphics.setColor(0.3, 1.0, 0.5)
+        -- 槽框
+        if inst then
+            local ratio = sm:getCooldownRatio(inst.id, cdReduce)
+            local ready = ratio >= 1.0
+            if ready then
+                love.graphics.setColor(0.2, 0.5, 0.2, 0.9)
+            else
+                love.graphics.setColor(0.14, 0.14, 0.22, 0.9)
+            end
         else
-            love.graphics.setColor(0.7, 0.7, 0.7)
+            love.graphics.setColor(0.1, 0.1, 0.13, 0.7)
         end
-        love.graphics.print(keyLabel .. " " .. T(cfg.nameKey) .. " Lv" .. inst.level, baseX, y)
+        love.graphics.rectangle("fill", x, y, slotW, slotH, 4, 4)
 
-        -- CD 进度条背景
-        love.graphics.setColor(0.2, 0.2, 0.2)
-        love.graphics.rectangle("fill", baseX, y + 14, barW, barH, 2, 2)
-
-        -- CD 进度条前景
-        if ready then
-            love.graphics.setColor(0.3, 1.0, 0.5)
+        -- 槽边框
+        if inst then
+            love.graphics.setColor(0.5, 0.35, 0.9)
         else
-            love.graphics.setColor(0.5, 0.3, 0.8)
+            love.graphics.setColor(0.3, 0.3, 0.35)
         end
-        love.graphics.rectangle("fill", baseX, y + 14, barW * ratio, barH, 2, 2)
+        love.graphics.rectangle("line", x, y, slotW, slotH, 4, 4)
 
-        -- 就绪文字
-        if ready then
-            love.graphics.setColor(0.3, 1.0, 0.5)
-            love.graphics.print("就绪", baseX + barW + 6, y + 10)
+        -- 按键标签（左上）
+        love.graphics.setColor(0.6, 0.6, 0.6)
+        love.graphics.print("[" .. slotKeys[slotKey] .. "]", x + 3, y + 3)
+
+        if inst then
+            local cfg = inst.cfg
+            local ratio = sm:getCooldownRatio(inst.id, cdReduce)
+            local ready = ratio >= 1.0
+
+            -- 技能名（中部，截短显示）
+            if ready then
+                love.graphics.setColor(0.3, 1.0, 0.5)
+            else
+                love.graphics.setColor(0.85, 0.85, 0.85)
+            end
+            local name = T(cfg.nameKey)
+            love.graphics.printf(name, x + 2, y + 18, slotW - 4, "left")
+
+            -- CD 进度条（底部）
+            local barY = y + slotH - 10
+            love.graphics.setColor(0.2, 0.2, 0.2)
+            love.graphics.rectangle("fill", x + 3, barY, slotW - 6, 6, 2, 2)
+            if ready then
+                love.graphics.setColor(0.3, 1.0, 0.5)
+            else
+                love.graphics.setColor(0.5, 0.3, 0.8)
+            end
+            love.graphics.rectangle("fill", x + 3, barY, (slotW - 6) * ratio, 6, 2, 2)
+        else
+            -- 空槽提示
+            love.graphics.setColor(0.35, 0.35, 0.4)
+            love.graphics.printf("空", x, y + 20, slotW, "center")
+        end
+    end
+
+    -- ============ 绘制被动技能列表 ============
+    if #passives > 0 then
+        local passiveX = baseX
+        local passiveY = startY - (#passives * 16) - 12
+
+        -- 背景
+        love.graphics.setColor(0, 0, 0, 0.5)
+        love.graphics.rectangle("fill", passiveX - 4, passiveY - 4,
+            totalSlotsW + 8, #passives * 16 + 10, 4, 4)
+
+        love.graphics.setColor(0.5, 0.5, 0.6)
+        love.graphics.print(T("hud.passives") or "被动:", passiveX, passiveY - 2)
+
+        for i, inst in ipairs(passives) do
+            local cfg = inst.cfg
+            local y = passiveY + (i - 1) * 16 + 14
+
+            -- passive_onhit / passive_timed：显示 CD/充能圆点
+            if cfg.type == "passive_onhit" or cfg.type == "passive_timed" then
+                local ratio = sm:getCooldownRatio(inst.id, cdReduce)
+                if ratio >= 1 then
+                    love.graphics.setColor(0.3, 1.0, 0.5)
+                else
+                    love.graphics.setColor(0.5, 0.3, 0.8)
+                end
+                love.graphics.circle("fill", passiveX + 4, y + 5, 4)
+                -- Bug#22：在圆点后绘制微型充能进度条
+                local barW = totalSlotsW - 16
+                love.graphics.setColor(0.2, 0.2, 0.2)
+                love.graphics.rectangle("fill", passiveX + 12, y + 3, barW, 4, 2, 2)
+                if ratio >= 1 then
+                    love.graphics.setColor(0.3, 1.0, 0.5)
+                else
+                    love.graphics.setColor(0.5, 0.3, 0.8)
+                end
+                love.graphics.rectangle("fill", passiveX + 12, y + 3, barW * ratio, 4, 2, 2)
+                love.graphics.setColor(0.75, 0.75, 0.75)
+                love.graphics.print(T(cfg.nameKey) .. " Lv" .. inst.level, passiveX + 12, y + 7)
+            else
+                love.graphics.setColor(0.6, 0.6, 0.6)
+                love.graphics.print("• " .. T(cfg.nameKey) .. " Lv" .. inst.level, passiveX, y)
+            end
         end
     end
 
@@ -784,16 +878,37 @@ function Game:keypressed(key)
         SkillSynergy.recalculate(sm, skillPsb)
         local mergedCdReduce = (psb.cdReduce or 0) + (skillPsb.cdReduce or 0)
         local ctx = {
-            dx          = _player._dx,
-            dy          = _player._dy,
-            enemies     = _enemies,
-            projectiles = _projectiles,
-            bag         = bag,
+            dx           = _player._lastDx or _player._dx,   -- Bug#29：用最后移动方向
+            dy           = _player._lastDy or _player._dy,
+            enemies      = _enemies,
+            projectiles  = _projectiles,
+            bag          = bag,
+            skillManager = sm,
         }
-        if key == "space" then sm:tryActivate("skill1", _player, ctx, mergedCdReduce) end
-        if key == "q"     then sm:tryActivate("skill2", _player, ctx, mergedCdReduce) end
-        if key == "e"     then sm:tryActivate("skill3", _player, ctx, mergedCdReduce) end
-        if key == "f"     then sm:tryActivate("skill4", _player, ctx, mergedCdReduce) end
+        if key == "space" then
+            if sm:tryActivate("skill1", _player, ctx, mergedCdReduce) then
+                local inst = sm:getSlot("skill1")
+                if inst then FX.spawn(inst.id, _player, ctx) end
+            end
+        end
+        if key == "q" then
+            if sm:tryActivate("skill2", _player, ctx, mergedCdReduce) then
+                local inst = sm:getSlot("skill2")
+                if inst then FX.spawn(inst.id, _player, ctx) end
+            end
+        end
+        if key == "e" then
+            if sm:tryActivate("skill3", _player, ctx, mergedCdReduce) then
+                local inst = sm:getSlot("skill3")
+                if inst then FX.spawn(inst.id, _player, ctx) end
+            end
+        end
+        if key == "f" then
+            if sm:tryActivate("skill4", _player, ctx, mergedCdReduce) then
+                local inst = sm:getSlot("skill4")
+                if inst then FX.spawn(inst.id, _player, ctx) end
+            end
+        end
     end
 end
 

@@ -35,6 +35,11 @@ function Spawner:setTarget(target)
     self._target = target
 end
 
+-- 设置技能管理器引用（用于 Bug#20：新生成敌人受全屏减速影响）
+function Spawner:setSkillManager(sm)
+    self._skillManager = sm
+end
+
 -- 每帧更新生成逻辑
 -- @param dt: 距上一帧的时间间隔（秒）
 function Spawner:update(dt)
@@ -116,6 +121,16 @@ function Spawner:_spawnOne()
     local typeName = self:_pickEnemyType()
     local enemy    = Enemy.new(spawnX, spawnY, typeName)
     enemy:setTarget(self._target)
+
+    -- Bug#20 修复：如果当前有全屏减速效果激活，新生成的敌人也受到影响
+    if self._skillManager then
+        local slowRate = self._skillManager:getGlobalSlow()
+        if slowRate > 0 then
+            enemy._baseSpeed = enemy.speed
+            enemy.speed      = enemy._baseSpeed * (1 - slowRate)
+            enemy._slowTimer = self._skillManager._globalSlowTimer
+        end
+    end
 
     return enemy
 end

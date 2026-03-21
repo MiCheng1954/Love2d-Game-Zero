@@ -288,9 +288,16 @@ function Console:_execute(cmd)
                 self:_addLine("无玩家引用")
             else
                 local sm = self._player:getSkillManager()
-                local ok = sm:add(subCmd, self._player)
-                if ok then
+                local result = sm:add(subCmd, self._player)
+                if result == true then
                     self:_addLine("已获得/升级技能: " .. subCmd .. " Lv" .. sm:getLevel(subCmd))
+                elseif type(result) == "table" and result.conflict then
+                    -- 控制台强制替换槽位（不弹 UI）
+                    sm:replaceSlot(result.slot, subCmd)
+                    self:_addLine("槽位冲突：已替换 " .. result.existing .. " -> " .. subCmd
+                        .. "（控制台强制替换）")
+                elseif type(result) == "table" and result.passiveFull then
+                    self:_addLine("被动已满（上限6个），无法添加: " .. subCmd)
                 else
                     local cfg = SkillConfig[subCmd]
                     if cfg and cfg.characterId and self._player.characterId ~= cfg.characterId then

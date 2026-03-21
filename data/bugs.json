@@ -25,15 +25,39 @@
 ,
   {"id":13,"desc":"武器融合界面的标题上左右各有一个乱码","time":"2026-03-21 01:19:02","priority":2,"status":"fixed","fixedTime":"2026-03-21","log":{"level":13,"hp":220,"elapsed":134.4,"enemies":1,"logSnapshot":"logs/bug_13_20260321_011902.log"}}
 ,
-  {"id":14,"desc":"武器详情页，不要常驻显示所有武器羁绊，只显示和这个武器关联的羁绊","time":"2026-03-21 01:53:29","priority":3,"log":{"level":1,"hp":100,"elapsed":5.1,"enemies":2,"logSnapshot":"logs/bug_14_20260321_015329.log"}}
+  {"id":14,"desc":"武器详情页，不要常驻显示所有武器羁绊，只显示和这个武器关联的羁绊","time":"2026-03-21 01:53:29","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":1,"hp":100,"elapsed":5.1,"enemies":2,"logSnapshot":"logs/bug_14_20260321_015329.log"}}
 ,
-  {"id":15,"desc":"武器羁绊要显示他的效果是什么","time":"2026-03-21 01:56:22","priority":3,"log":{"level":7,"hp":160,"elapsed":55.1,"enemies":11,"logSnapshot":"logs/bug_15_20260321_015622.log"}}
+  {"id":15,"desc":"武器羁绊要显示他的效果是什么","time":"2026-03-21 01:56:22","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":7,"hp":160,"elapsed":55.1,"enemies":11,"logSnapshot":"logs/bug_15_20260321_015622.log"}}
 ,
-  {"id":16,"desc":"武器融合界面，要显示新武器的标签","time":"2026-03-21 01:57:51","priority":3,"log":{"level":11,"hp":200,"elapsed":88.9,"enemies":14,"logSnapshot":"logs/bug_16_20260321_015751.log"}}
+  {"id":16,"desc":"武器融合界面，要显示新武器的标签","time":"2026-03-21 01:57:51","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":11,"hp":200,"elapsed":88.9,"enemies":14,"logSnapshot":"logs/bug_16_20260321_015751.log"}}
 ,
-  {"id":17,"desc":"武器详情的武器标签，显示的是当前武器自己都有哪些标签，而不是标签总数，也不需要数量显示","time":"2026-03-21 01:59:05","priority":3,"log":{"level":11,"hp":200,"elapsed":88.9,"enemies":14,"logSnapshot":"logs/bug_17_20260321_015905.log"}}
+  {"id":17,"desc":"武器详情的武器标签，显示的是当前武器自己都有哪些标签，而不是标签总数，也不需要数量显示","time":"2026-03-21 01:59:05","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":11,"hp":200,"elapsed":88.9,"enemies":14,"logSnapshot":"logs/bug_17_20260321_015905.log"}}
 ,
-  {"id":18,"desc":"背包界面的武器羁绊，合并到武器详情里面去，不要单独显示在背包界面上，且只显示和这个武器相关的羁绊","time":"2026-03-21 02:13:50","priority":3,"log":{"level":1,"hp":100,"elapsed":3.4,"enemies":2,"logSnapshot":"logs/bug_18_20260321_021350.log"}}
+  {"id":18,"desc":"背包界面的武器羁绊，合并到武器详情里面去，不要单独显示在背包界面上，且只显示和这个武器相关的羁绊","time":"2026-03-21 02:13:50","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":1,"hp":100,"elapsed":3.4,"enemies":2,"logSnapshot":"logs/bug_18_20260321_021350.log"}}
 ,
-  {"id":19,"desc":"融合界面双持手枪显示的尺寸是2*2，但实际是1*2","time":"2026-03-21 02:22:39","priority":2,"log":{"level":8,"hp":170,"elapsed":69.6,"enemies":5,"logSnapshot":"logs/bug_19_20260321_022239.log"}}
+  {"id":19,"desc":"融合界面双持手枪显示的尺寸是2*2，但实际是1*2","time":"2026-03-21 02:22:39","priority":2,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":170,"elapsed":69.6,"enemies":5,"logSnapshot":"logs/bug_19_20260321_022239.log"}}
+,
+  {"id":20,"desc":"全屏减速技能对新生成的敌人无效，这个需要改一下","time":"2026-03-21 13:47:25","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":9,"hp":122,"elapsed":107.0,"enemies":108,"logSnapshot":"logs/bug_20_20260321_134725.log"}}
+,
+  {"id":21,"desc":"目前技能的技能槽和实际的按键对应不上，在获取技能的时候，技能按键为Q的和技能按键为E的会产生冲突，要给技能槽这个属性加到技能的类型里面去","time":"2026-03-21 14:41:18","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":9,"hp":180,"elapsed":102.7,"enemies":81,"logSnapshot":"logs/bug_21_20260321_144118.log"}}
+,
+  {"id":22,"desc":"间隔时间自动触发的技能没有充能UI，这个要补充上","time":"2026-03-21 14:42:40","priority":2,"status":"fixed","fixedTime":"2026-03-21","log":{"level":4,"hp":130,"elapsed":9.3,"enemies":3,"logSnapshot":"logs/bug_22_20260321_144240.log"}}
+,
+  {"id":23,"desc":"投掷炸弹的技能描述是E技能，但实际上是q技能，这个要处理一下","time":"2026-03-21 14:43:51","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":5,"hp":140,"elapsed":25.3,"enemies":3,"logSnapshot":"logs/bug_23_20260321_144351.log"}}
+,
+  {"id":24,"desc":"目前技能槽由比较大的缺陷，技能是按照获取顺序一次填充的，而不是按照技能设定的技能槽去填充顶替的，这会导致错误","time":"2026-03-21 14:45:12","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":6,"hp":150,"elapsed":35.5,"enemies":3,"logSnapshot":"logs/bug_24_20260321_144512.log"}}
+,
+  {"id":25,"desc":"背包界面需要一个技能面板，显示当前拥有的技能列表，在选择中技能的时候，和武器一样，需要有技能详情的描述","time":"2026-03-21 14:47:25","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":170,"elapsed":64.8,"enemies":31,"logSnapshot":"logs/bug_25_20260321_144725.log"}}
+,
+  {"id":26,"desc":"被动技能触发的爆炸等效果，也要有技能表现","time":"2026-03-21 14:48:27","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":9,"hp":174,"elapsed":100.6,"enemies":84,"logSnapshot":"logs/bug_26_20260321_144827.log"}}
+,
+  {"id":27,"desc":"在武器详情页面里，武器拥有的标签应该单独显示在武器名字后面","time":"2026-03-21 14:53:02","priority":2,"status":"fixed","fixedTime":"2026-03-21","log":{"level":16,"hp":221,"elapsed":235.0,"enemies":98,"logSnapshot":"logs/bug_27_20260321_145302.log"}}
+,
+  {"id":28,"desc":"被技能打死的敌人似乎没有正常掉落灵魂经验","time":"2026-03-21 14:54:00","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":16,"hp":281,"elapsed":261.6,"enemies":20,"logSnapshot":"logs/bug_28_20260321_145400.log"}}
+,
+  {"id":29,"desc":"投掷炸弹等指向性技能，要用角色最后一次的移动方向作为瞄准方向","time":"2026-03-21 14:57:57","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":23,"hp":370,"elapsed":361.5,"enemies":5,"logSnapshot":"logs/bug_29_20260321_145757.log"}}
+,
+  {"id":30,"desc":"第一次进入游戏的时候，还没有获得技能时，左下角的技能栏没有显示出来","time":"2026-03-21 16:22:38","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":1,"hp":100,"elapsed":7.0,"enemies":2,"logSnapshot":"logs/bug_30_20260321_162238.log"}}
+,
+  {"id":31,"desc":"背包页面还是没有技能详情","time":"2026-03-21 16:25:55","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":4,"hp":130,"elapsed":34.7,"enemies":3,"logSnapshot":"logs/bug_31_20260321_162555.log"}}
 ]

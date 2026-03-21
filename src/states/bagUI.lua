@@ -3,16 +3,18 @@
     背包界面状态（push/pop 覆盖层）
     Phase 6：武器背包系统
     Phase 7.1：新增融合交互（FUSION 预览子状态）
+    Phase 8（改版）：右侧面板支持 Q/E 键切换「武器详情」和「技能面板」
 
     模式：
       BROWSE — TAB 打开，方向键移动光标，R 旋转预览，ESC 关闭
+               Q/E 切换右侧面板（武器 / 技能）
       PLACE  — 升级获得新武器/背包内移动武器，Enter 确认，ESC 丢弃
       SELECT — 选择背包中某把武器（升级用）
       FUSION — 检测到融合配方后弹出预览，Enter 确认融合，ESC 返回 PLACE
 
     布局（1280×720）：
       左侧：背包网格（每格 64px）
-      右侧：选中武器详情
+      右侧：选中武器详情 / 技能面板（Q/E 切换）
       底部：操作提示栏
 ]]
 
@@ -52,6 +54,7 @@ local GRID_Y     = 120   -- 网格上边距
 --   data.filter     — SELECT 模式过滤函数 function(weapon) → bool（可选）
 function BagUI:enter(data)
     self._bag        = data.bag
+    self._player     = data.player   -- 需求4：存储玩家引用（用于技能列表展示）
     self._mode       = data.mode or MODE_BROWSE
     self._onPlace    = data.onPlace
     self._onDiscard  = data.onDiscard
@@ -78,6 +81,10 @@ function BagUI:enter(data)
     self._fusionFailTimer   = 0
     self._detailBottomY     = 480   -- Bug#6/#8：详情面板实际底部Y，供 _drawSynergies 用
 
+    -- 右侧面板切换（Q=武器, E=技能）
+    self._panelTab     = "weapon"   -- "weapon" / "skill"
+    self._skillCursor  = 1          -- 技能列表当前选中索引
+
     -- 防止本帧输入残留
     Input.update()
 end
@@ -85,6 +92,7 @@ end
 -- 退出背包界面
 function BagUI:exit()
     self._bag               = nil
+    self._player            = nil   -- 需求4
     self._placing           = nil
     self._onPlace           = nil
     self._onDiscard         = nil
@@ -97,6 +105,8 @@ function BagUI:exit()
     self._fusionJustEntered = false
     self._fusionFailMsg     = nil
     self._fusionFailTimer   = 0
+    self._panelTab          = "weapon"
+    self._skillCursor       = 1
 end
 
 -- ============================================================
@@ -120,6 +130,32 @@ end
 -- BROWSE 模式输入处理（支持拾起武器移动 — 修复 #6）
 function BagUI:_updateBrowse()
     local bag = self._bag
+
+    -- Q/E 切换右侧面板（武器 / 技能）
+    if Input.isPressed("skill2") then   -- Q
+        self._panelTab = "weapon"
+    elseif Input.isPressed("skill3") then   -- E
+        self._panelTab = "skill"
+    end
+
+    if self._panelTab == "skill" then
+        -- 技能面板：上下键移动技能光标
+        local list = self:_getSkillList()
+        local cnt  = #list
+        if cnt > 0 then
+            if Input.isPressed("moveUp") then
+                self._skillCursor = math.max(1, self._skillCursor - 1)
+            elseif Input.isPressed("moveDown") then
+                self._skillCursor = math.min(cnt, self._skillCursor + 1)
+            end
+        end
+
+        -- ESC 或 TAB 关闭
+        if Input.isPressed("cancel") or Input.isPressed("openBag") then
+            if self._onClose then self._onClose() end
+        end
+        return
+    end
 
     if Input.isPressed("moveUp") then
         self._cursorRow = math.max(1, self._cursorRow - 1)
@@ -371,14 +407,29 @@ function BagUI:draw()
     love.graphics.setColor(1, 0.85, 0.1)
     love.graphics.printf(T("bag.title"), 0, 30, 1280, "center")
 
-    -- 背包网格
-    self:_drawGrid()
+    -- Tab 标签（仅 BROWSE 模式）
+    self:_drawPanelTabs()
 
-    -- 右侧详情面板
-    self:_drawDetail()
+    -- BROWSE 技能面板：隐藏背包网格，撑满全区
+    local showSkillPanel = (self._mode == MODE_BROWSE) and (self._panelTab == "skill")
 
-    -- 右侧羁绊面板
-    self:_drawSynergies()
+    if not showSkillPanel then
+        -- 背包网格（武器面板 / PLACE / SELECT / FUSION 时显示）
+        self:_drawGrid()
+
+        -- 右侧面板
+        if self._mode == MODE_PLACE or self._mode == MODE_SELECT or self._mode == MODE_FUSION then
+            self:_drawDetail()
+        else
+            self:_drawDetail()
+        end
+
+        -- 右侧羁绊（空函数，占位）
+        self:_drawSynergies()
+    else
+        -- 技能面板撑满全区
+        self:_drawSkillPanel()
+    end
 
     -- FUSION 模式：覆盖绘制融合预览浮窗
     if self._mode == MODE_FUSION then
@@ -564,8 +615,23 @@ function BagUI:_drawDetail()
     end
 
     local col = w.color
+    -- Bug #27：武器名字 + 标签（方括号形式显示在名字同行）
+    local cfg0 = WeaponConfig[w.configId]
+    local cfgTags0 = cfg0 and cfg0.tags or {}
     love.graphics.setColor(col)
-    love.graphics.printf(T(w.nameKey), panelX, panelY, panelW, "left")
+    local nameStr = T(w.nameKey)
+    love.graphics.print(nameStr, panelX, panelY)
+    if #cfgTags0 > 0 then
+        local nameW = Font.get(15):getWidth(nameStr) + 8
+        love.graphics.setColor(1.0, 0.85, 0.3)
+        Font.set(13)
+        local tagStr = ""
+        for _, tg in ipairs(cfgTags0) do
+            tagStr = tagStr .. "[" .. T("tag." .. tg) .. "]"
+        end
+        love.graphics.print(tagStr, panelX + nameW, panelY + 2)
+        Font.set(15)
+    end
 
     love.graphics.setColor(0.7, 0.7, 0.7)
     love.graphics.printf(T(w.descKey), panelX, panelY + 28, panelW, "left")
@@ -704,11 +770,271 @@ end
 function BagUI:_drawSynergies()
 end
 
+-- ============================================================
+-- 面板 Tab 标签栏（Q=武器, E=技能）
+-- ============================================================
+
+function BagUI:_drawPanelTabs()
+    -- PLACE / SELECT / FUSION 不显示切换 tab（强制武器面板）
+    if self._mode ~= MODE_BROWSE then return end
+
+    local tabX = GRID_X     -- 固定在内容区左边缘
+    local tabY = GRID_Y - 28
+    local tabW = 90
+    local tabH = 22
+
+    Font.set(13)
+
+    local tabs = {
+        { key = "weapon", label = "Q 武器" },
+        { key = "skill",  label = "E 技能" },
+    }
+    local tx = tabX
+    for _, tab in ipairs(tabs) do
+        local active = (self._panelTab == tab.key)
+        if active then
+            love.graphics.setColor(0.25, 0.18, 0.5, 0.95)
+            love.graphics.rectangle("fill", tx, tabY, tabW, tabH, 4, 4)
+            love.graphics.setColor(0.7, 0.5, 1.0)
+            love.graphics.rectangle("line", tx, tabY, tabW, tabH, 4, 4)
+            love.graphics.setColor(1.0, 1.0, 1.0)
+        else
+            love.graphics.setColor(0.1, 0.1, 0.15, 0.8)
+            love.graphics.rectangle("fill", tx, tabY, tabW, tabH, 4, 4)
+            love.graphics.setColor(0.35, 0.35, 0.4)
+            love.graphics.rectangle("line", tx, tabY, tabW, tabH, 4, 4)
+            love.graphics.setColor(0.5, 0.5, 0.55)
+        end
+        love.graphics.printf(tab.label, tx, tabY + 4, tabW, "center")
+        tx = tx + tabW + 6
+    end
+
+    Font.reset()
+end
+
+-- ============================================================
+-- 辅助：返回技能面板的扁平列表（主动槽 + 被动）
+-- 每项 { inst, slotKey }   slotKey=nil 表示被动
+-- ============================================================
+
+function BagUI:_getSkillList()
+    if not self._player then return {} end
+    local sm = self._player._skillManager
+    if not sm then return {} end
+
+    local list = {}
+    local slotOrder = { "skill1", "skill2", "skill3", "skill4" }
+    for _, sk in ipairs(slotOrder) do
+        local inst = sm._slots[sk]
+        if inst then
+            table.insert(list, { inst = inst, slotKey = sk })
+        end
+    end
+    for _, inst in ipairs(sm:getPassives()) do
+        table.insert(list, { inst = inst, slotKey = nil })
+    end
+    return list
+end
+
+-- ============================================================
+-- 技能面板：左列列表 + 右列详情
+-- ============================================================
+
+function BagUI:_drawSkillPanel()
+    -- 撑满整个内容区（从 GRID_X 开始，横跨到右边）
+    local areaX = GRID_X
+    local areaY = GRID_Y
+    local areaW = 1280 - areaX - 20
+
+    -- 左列：技能列表
+    local listW = 220
+    -- 右列：技能详情
+    local detX  = areaX + listW + 20
+    local detW  = areaW - listW - 20
+
+    local list = self:_getSkillList()
+
+    if #list == 0 then
+        Font.set(13)
+        love.graphics.setColor(0.5, 0.5, 0.55)
+        love.graphics.printf("（尚未获得任何技能）", areaX, areaY + 20, areaW, "left")
+        love.graphics.setColor(0.35, 0.35, 0.4)
+        Font.set(12)
+        love.graphics.printf("升级时选择「技能获取」可以获得技能", areaX, areaY + 46, areaW, "left")
+        Font.reset()
+        return
+    end
+
+    -- 保证光标合法
+    self._skillCursor = math.max(1, math.min(self._skillCursor, #list))
+
+    local slotLabel = { skill1 = "空格", skill2 = "Q", skill3 = "E", skill4 = "F" }
+    local typeLabel = {
+        active         = "主动",
+        passive_timed  = "自动被动",
+        passive_onkill = "击杀被动",
+        passive_onhit  = "受击被动",
+        passive        = "纯被动",
+    }
+
+    -- ── 左列：技能列表 ──
+    local lh   = 22
+    local curY = areaY
+
+    Font.set(13)
+    love.graphics.setColor(0.5, 0.35, 0.9)
+    love.graphics.print("技能列表", areaX, curY)
+    curY = curY + lh
+
+    for i, entry in ipairs(list) do
+        local inst     = entry.inst
+        local cfg      = inst.cfg
+        local selected = (i == self._skillCursor)
+
+        if selected then
+            love.graphics.setColor(0.2, 0.12, 0.38, 0.9)
+            love.graphics.rectangle("fill", areaX - 2, curY - 1, listW, lh, 3, 3)
+            love.graphics.setColor(0.6, 0.4, 1.0)
+            love.graphics.rectangle("line", areaX - 2, curY - 1, listW, lh, 3, 3)
+            love.graphics.setColor(1.0, 1.0, 1.0)
+        else
+            love.graphics.setColor(0.7, 0.7, 0.75)
+        end
+
+        -- 名称 + 等级
+        local name = T(cfg.nameKey)
+        love.graphics.print(name .. "  Lv" .. inst.level, areaX + 2, curY)
+
+        -- 右侧小标签（按键 / 被动）
+        Font.set(11)
+        if entry.slotKey then
+            love.graphics.setColor(selected and 0.8 or 0.45, selected and 0.6 or 0.35, selected and 1.0 or 0.7)
+            love.graphics.printf("[" .. (slotLabel[entry.slotKey] or "?") .. "]",
+                areaX, curY + 2, listW - 2, "right")
+        else
+            love.graphics.setColor(selected and 0.6 or 0.4, selected and 0.85 or 0.6, selected and 0.6 or 0.45)
+            love.graphics.printf("[被动]", areaX, curY + 2, listW - 2, "right")
+        end
+        Font.set(13)
+
+        curY = curY + lh
+    end
+
+    -- 分割线（列表和详情之间）
+    love.graphics.setColor(0.3, 0.3, 0.4)
+    love.graphics.line(detX - 10, areaY, detX - 10, areaY + 560)
+
+    -- ── 右列：选中技能详情 ──
+    local detY = areaY
+
+    local sel = list[self._skillCursor]
+    if not sel then
+        Font.reset()
+        return
+    end
+
+    local inst = sel.inst
+    local cfg  = inst.cfg
+
+    -- 技能名（大字，紫色）
+    Font.set(15)
+    love.graphics.setColor(0.75, 0.5, 1.0)
+    love.graphics.print(T(cfg.nameKey), detX, detY)
+
+    -- 类型 + 按键标签（同行）
+    Font.set(13)
+    local typeTxt = typeLabel[cfg.type] or cfg.type
+    local keyTxt  = sel.slotKey and ("[" .. (slotLabel[sel.slotKey] or "?") .. "]") or "[被动]"
+    love.graphics.setColor(0.55, 0.55, 0.65)
+    love.graphics.print(typeTxt .. "  " .. keyTxt, detX, detY + 22)
+
+    -- 描述（灰色，自动换行）
+    love.graphics.setColor(0.68, 0.68, 0.68)
+    love.graphics.printf(T(cfg.descKey), detX, detY + 44, detW, "left")
+
+    -- 分割线
+    local lineY = detY + 90
+    love.graphics.setColor(0.3, 0.3, 0.4)
+    love.graphics.line(detX, lineY, detX + detW, lineY)
+
+    local statY = lineY + 10
+    local slh   = 20
+    Font.set(13)
+    love.graphics.setColor(0.85, 0.85, 0.85)
+
+    -- 等级
+    love.graphics.print(string.format("等级:   %d / %d", inst.level, cfg.maxLevel or 1), detX, statY)
+    statY = statY + slh
+
+    -- CD / 间隔 / 触发条件
+    if cfg.type == "active" or cfg.type == "passive_onhit" then
+        local cd = cfg.cooldown or 0
+        if cfg.levelBonus and cfg.levelBonus.cooldown then
+            cd = math.max(0.5, cd + cfg.levelBonus.cooldown * (inst.level - 1))
+        end
+        love.graphics.print(string.format("冷却:   %.1f s", cd), detX, statY)
+        statY = statY + slh
+    elseif cfg.type == "passive_timed" then
+        local interval = cfg.trigger and cfg.trigger.interval or 10
+        if cfg.levelBonus and cfg.levelBonus.interval then
+            interval = math.max(2, interval + cfg.levelBonus.interval * (inst.level - 1))
+        end
+        love.graphics.print(string.format("间隔:   %.0f s 自动触发", interval), detX, statY)
+        statY = statY + slh
+    elseif cfg.type == "passive_onkill" then
+        local kc = cfg.trigger and cfg.trigger.killCount or 5
+        love.graphics.print(string.format("触发:   每 %d 次击杀", kc), detX, statY)
+        statY = statY + slh
+    end
+
+    -- 纯被动：显示加成数值
+    if cfg.type == "passive" and cfg.passive then
+        local p = cfg.passive
+        local base    = p.base    or 0
+        local lvBonus = p.lvBonus or 0
+        local value   = base + lvBonus * (inst.level - 1)
+        love.graphics.setColor(0.4, 1.0, 0.6)
+        love.graphics.print(string.format("加成:   %s +%s", p.key, tostring(value)), detX, statY)
+        statY = statY + slh
+    end
+
+    -- 升级加成预览（有 levelBonus 且未满级）
+    if cfg.levelBonus and inst.level < (cfg.maxLevel or 1) then
+        statY = statY + 4
+        love.graphics.setColor(1.0, 0.85, 0.3)
+        love.graphics.print("下一级:", detX, statY)
+        statY = statY + slh
+        Font.set(12)
+        love.graphics.setColor(0.9, 0.8, 0.4)
+        for k, v in pairs(cfg.levelBonus) do
+            if k ~= "cooldown" and k ~= "interval" and k ~= "cd" then
+                love.graphics.print(string.format("  %s +%s", k, tostring(v)), detX, statY)
+                statY = statY + slh - 4
+            end
+        end
+        Font.set(13)
+    end
+
+    -- 角色专属标记
+    if cfg.characterId then
+        statY = statY + 8
+        love.graphics.setColor(1.0, 0.5, 0.2)
+        love.graphics.print("★ 角色专属技能", detX, statY)
+    end
+
+    Font.reset()
+end
+
 -- 绘制底部操作提示
 function BagUI:_drawHint()
+    Font.set(13)
     love.graphics.setColor(0.5, 0.5, 0.5)
     if self._mode == MODE_BROWSE then
-        love.graphics.printf(T("bag.hint.browse"), 0, 688, 1280, "center")
+        if self._panelTab == "skill" then
+            love.graphics.printf("方向键 上下选择技能  |  Q 武器面板  |  ESC 关闭", 0, 688, 1280, "center")
+        else
+            love.graphics.printf(T("bag.hint.browse"), 0, 688, 1280, "center")
+        end
     elseif self._mode == MODE_PLACE then
         love.graphics.printf(T("bag.hint.place"), 0, 688, 1280, "center")
     elseif self._mode == MODE_SELECT then
@@ -717,6 +1043,7 @@ function BagUI:_drawHint()
     elseif self._mode == MODE_FUSION then
         love.graphics.printf(T("bag.hint.fusion"), 0, 688, 1280, "center")
     end
+    Font.reset()
 end
 
 -- 绘制融合预览浮窗（Phase 7.1）

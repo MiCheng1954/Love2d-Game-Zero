@@ -140,8 +140,9 @@ end
 -- 死亡时回调，覆盖基类实现
 -- @return pickups: 死亡时生成的掉落物列表
 function Enemy:onDeath()
-    self._isDead    = true
-    self._isVisible = false
+    self._isDead        = true
+    self._isVisible     = false
+    self._dropProcessed = false   -- 掉落物尚未被游戏主循环处理
 
     -- 生成掉落物列表
     local pickups = {}

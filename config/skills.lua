@@ -86,6 +86,7 @@ local SkillConfig = {}
 
 SkillConfig["dash"] = {
     type        = "active",
+    slotType    = "dash",      -- 只能放入空格槽（冲刺专属槽）
     key         = "skill1",    -- 空格
     cooldown    = 8,
     nameKey     = "skill.dash.name",
@@ -107,6 +108,7 @@ SkillConfig["dash"] = {
 
 SkillConfig["time_slow"] = {
     type        = "active",
+    slotType    = "active",    -- 可放入 Q 或 E 槽
     key         = "skill2",    -- Q
     cooldown    = 20,
     nameKey     = "skill.time_slow.name",
@@ -118,11 +120,16 @@ SkillConfig["time_slow"] = {
     effect = function(player, level, ctx)
         local duration = 3 + (level - 1) * 1
         aoeSlowEnemies(player, ctx and ctx.enemies, nil, 0.8, duration)
+        -- 设置全局减速状态，让新生成的敌人也受到影响
+        if ctx and ctx.skillManager then
+            ctx.skillManager:setGlobalSlow(0.8, duration)
+        end
     end,
 }
 
 SkillConfig["bomb_throw"] = {
     type        = "active",
+    slotType    = "active",    -- 可放入 Q 或 E 槽
     key         = "skill3",    -- E
     cooldown    = 12,
     nameKey     = "skill.bomb_throw.name",
@@ -154,6 +161,7 @@ SkillConfig["bomb_throw"] = {
 
 SkillConfig["blink"] = {
     type        = "active",
+    slotType    = "active",    -- 可放入 Q 或 E 槽
     key         = "skill2",    -- Q（与 time_slow 共享按键，后加的替换）
     cooldown    = 15,
     nameKey     = "skill.blink.name",
@@ -181,6 +189,7 @@ SkillConfig["blink"] = {
 
 SkillConfig["battle_cry"] = {
     type        = "active",
+    slotType    = "active",    -- 可放入 Q 或 E 槽
     key         = "skill4",    -- F
     cooldown    = 25,
     nameKey     = "skill.battle_cry.name",
@@ -204,6 +213,7 @@ SkillConfig["battle_cry"] = {
 
 SkillConfig["mana_shield"] = {
     type        = "active",
+    slotType    = "active",    -- 可放入 Q 或 E 槽
     key         = "skill4",    -- F（与 battle_cry 共享槽位）
     cooldown    = 18,
     nameKey     = "skill.mana_shield.name",
@@ -234,6 +244,10 @@ SkillConfig["emp_burst"] = {
     effect = function(player, level, ctx)
         local slowDur = 3 + (level - 1) * 1
         aoeSlowEnemies(player, ctx and ctx.enemies, nil, 0.5, slowDur)
+        -- 设置全局减速状态，让新生成的敌人也受到影响
+        if ctx and ctx.skillManager then
+            ctx.skillManager:setGlobalSlow(0.5, slowDur)
+        end
     end,
 }
 
@@ -448,7 +462,8 @@ SkillConfig["iron_will"] = {
 
 SkillConfig["overload"] = {
     type        = "active",
-    key         = "skill1",    -- 空格（备选槽）
+    slotType    = "exclusive", -- 只能放入 F 槽（角色专属槽）
+    key         = "skill4",    -- F（专属技能槽）
     cooldown    = 30,
     nameKey     = "skill.overload.name",
     descKey     = "skill.overload.desc",

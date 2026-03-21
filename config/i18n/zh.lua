@@ -14,7 +14,8 @@ return {
     ["hud.hint"]         = "WASD 移动  |  TAB 背包  |  P 暂停  |  ESC 返回菜单",
     ["hud.paused"]       = "⏸  已暂停",
     ["hud.pause_hint"]   = "按 P 继续游戏",
-    ["hud.skills"]       = "[技能]",  -- Phase 8
+    ["hud.skills"]       = "[技能]",   -- Phase 8
+    ["hud.passives"]     = "被动:",    -- Phase 8 需求5
 
     -- 升级界面
     ["upgrade.title"]    = "★  LEVEL UP  ★",
@@ -87,7 +88,7 @@ return {
     -- 背包界面
     ["bag.title"]              = "◈  背包  ◈",
     ["bag.empty"]              = "（空）",
-    ["bag.hint.browse"]        = "方向键 移动光标  |  Enter 拾起移动  |  ESC 关闭",
+    ["bag.hint.browse"]        = "方向键 移动光标  |  Enter 拾起移动  |  Q 武器面板  |  E 技能面板  |  ESC 关闭",
     ["bag.hint.place"]         = "方向键 移动位置  |  R 旋转  |  Enter 放置  |  ESC 丢弃",
     ["bag.hint.select"]        = "方向键 移动光标  |  Enter 选择  |  ESC 取消",
     ["bag.hint.select_upgrade"]= "选择一把武器进行强化  |  Enter 确认  |  ESC 取消",
@@ -251,11 +252,11 @@ return {
     ["skill.counter_shot.desc"] = "受伤后向最近敌人发射 3 颗 30 伤害弹，CD 10s",
     ["skill.rage.desc"]         = "受伤后攻击力+50% 持续 5s，CD 20s",
     ["skill.thorns.desc"]       = "受伤后将 50% 伤害反弹给攻击者，CD 8s",
-    ["skill.iron_body.desc"]    = "持有即生效：最大生命值 +50",
-    ["skill.swift_feet.desc"]   = "持有即生效：移动速度 +40",
-    ["skill.sharpshooter.desc"] = "持有即生效：暴击率 +10%，暴击伤害 +30%",
-    ["skill.energy_field.desc"] = "持有即生效：拾取范围 +80，经验获取 +20%",
-    ["skill.iron_will.desc"]    = "持有即生效：受到伤害减少 10%",
+    ["skill.iron_body.desc"]    = "被动：最大生命值 +50",
+    ["skill.swift_feet.desc"]   = "被动：移动速度 +40",
+    ["skill.sharpshooter.desc"] = "被动：暴击率 +10%，暴击伤害 +30%",
+    ["skill.energy_field.desc"] = "被动：拾取范围 +80，经验获取 +20%",
+    ["skill.iron_will.desc"]    = "被动：受到伤害减少 10%",
     ["skill.overload.desc"]     = "【角色专属】背包所有武器射速×2 持续 4s，CD 30s",
 
     -- Phase 8：技能羁绊名称与描述

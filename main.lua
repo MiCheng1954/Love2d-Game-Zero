@@ -15,7 +15,8 @@ local Gameover     = require("src.states.gameover")
 local Console      = require("src.states.console")
 local DevReport    = require("src.states.devReport")   -- [可剔除] 注释此行+register+F12分支即可移除
 local BagUI        = require("src.states.bagUI")
-local SkillSelectUI = require("src.states.skillSelectUI")   -- Phase 8
+local SkillSelectUI    = require("src.states.skillSelectUI")    -- Phase 8
+local SkillConflictUI  = require("src.states.skillConflictUI")  -- Phase 8
 
 -- 游戏初始化，Love2D 启动后调用一次
 function love.load()
@@ -40,7 +41,8 @@ function love.load()
     StateManager.register("console",       Console)
     StateManager.register("devReport",     DevReport)        -- [可剔除] 注释此行+require+F12分支即可移除
     StateManager.register("bagUI",         BagUI)
-    StateManager.register("skillSelectUI", SkillSelectUI)    -- Phase 8
+    StateManager.register("skillSelectUI",   SkillSelectUI)    -- Phase 8
+    StateManager.register("skillConflictUI", SkillConflictUI)  -- Phase 8
 
     -- 设置默认字体抗锯齿过滤
     love.graphics.setDefaultFilter("nearest", "nearest")

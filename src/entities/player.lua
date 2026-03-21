@@ -50,6 +50,8 @@ function Player.new(x, y)
     -- 移动状态
     self._dx          = 0     -- 当前帧水平移动方向
     self._dy          = 0     -- 当前帧垂直移动方向
+    self._lastDx      = 1     -- 最后一次移动的水平方向（用于技能瞄准）
+    self._lastDy      = 0     -- 最后一次移动的垂直方向
 
     -- 技能管理器（Phase 8）
     self._skillManager = SkillManager.new()
@@ -87,6 +89,11 @@ function Player:_handleMovement(dt, extraSpeed)
     local effectiveSpeed = self.speed + (extraSpeed or 0)
     self.x = self.x + self._dx * effectiveSpeed * dt
     self.y = self.y + self._dy * effectiveSpeed * dt
+    -- 记录最后一次有效移动方向（技能瞄准用，玩家静止时不清零）
+    if self._dx ~= 0 or self._dy ~= 0 then
+        self._lastDx = self._dx
+        self._lastDy = self._dy
+    end
 end
 
 -- 将玩家绘制到屏幕上
