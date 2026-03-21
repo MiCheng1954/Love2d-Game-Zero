@@ -19,6 +19,7 @@ local HELP_LINES = {
     "souls <n>        - 设置灵魂数量",
     "exp <n>          - 增加 n 点经验",
     "kill             - 秒杀所有敌人",
+    "win              - 立即触发胜利流程（测试用）",
     "weapon <id>      - 获得指定武器放入背包（如: weapon pistol）",
     "skill <id>       - 获得/升级技能（如: skill dash）",
     "skill list       - 列出所有可用技能 id",
@@ -64,6 +65,7 @@ function Console:enter(data)
     self._enemies = data and data.enemies or nil
     self._spawner = data and data.spawner or nil
     self._onLevelUp = data and data.onLevelUp or nil
+    self._onVictory = data and data.onVictory or nil
 
     -- 光标闪烁计时
     self._cursorTimer  = 0
@@ -316,6 +318,14 @@ function Console:_execute(cmd)
             self:_addLine("已添加 " .. math.floor(n) .. " 点经验")
         else
             self:_addLine("用法: exp <n>")
+        end
+
+    elseif verb == "win" then
+        if self._onVictory then
+            self._onVictory()
+            self:_addLine("触发胜利流程（4秒后跳转结算）")
+        else
+            self:_addLine("无法触发胜利（未绑定回调）")
         end
 
     elseif verb == "kill" then

@@ -42,8 +42,10 @@ return {
     ["menu.start"]       = "按 Enter 开始游戏",
 
     -- 结算
-    ["gameover.title"]   = "GAME OVER",
-    ["gameover.hint"]    = "按 Enter 返回菜单",
+    ["gameover.title"]         = "GAME OVER",
+    ["gameover.hint"]          = "按 Enter 返回菜单",
+    ["gameover.victory_title"] = "★  VICTORY  ★",
+    ["gameover.victory_sub"]   = "你击败了虚空领主，世界得救了！",
 
     -- 升级大类（与 config/upgrades.lua 对应）
     ["cat.weapon"]       = "武器强化",

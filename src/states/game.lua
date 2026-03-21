@@ -357,7 +357,7 @@ function Game:update(dt)
         _victoryTimer = _victoryTimer - dt
         if _victoryTimer <= 0 then
             local StateManager = require("src.states.stateManager")
-            StateManager.switch("gameover")
+            StateManager.switch("gameover", { isVictory = true })
             return   -- 切换状态后立即返回，避免访问已被 exit() 清空的状态
         end
         -- 胜利状态：不再更新敌人/生成，直接进入最终清理和跳转
@@ -1118,6 +1118,13 @@ function Game._triggerLevelUp()
             newLevel = _player:getLevel(),
         }
     end
+end
+
+-- Phase 9：触发胜利（供控制台 win 指令使用）
+function Game._triggerVictory()
+    _victory      = true
+    _victoryTimer = VICTORY_DELAY
+    Log.info("控制台触发胜利")
 end
 
 return Game

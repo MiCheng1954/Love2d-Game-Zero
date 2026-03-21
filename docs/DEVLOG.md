@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-03-22] Phase 9 收尾 — Bug 修复 + 胜利界面完善
+
+**做了什么：**
+
+### Bug 修复
+- **胜利后崩溃**：`StateManager.switch("gameover")` 后缺少 `return`，导致继续访问已被 `exit()` 清空的 `_camera`（nil）→ 加 `return` 修复
+- **Bug #33 武器无法锁定 Boss**：`_findNearestEnemyInRange` 只搜索 `_enemies` 列表，Boss 是独立 `_boss` 变量不在其中，武器永远不会朝 Boss 发射 → 修改索敌函数同时检测 `_boss`
+- **Bug #33 Boss 死亡双重掉落**：`projectilesVsBoss` 原先调用 `proj:onHit(boss)` → `takeDamage` → `onDeath`（掉落丢弃），然后外层再次调用 `_boss:onDeath()` → 改为手动扣血，只在 hp≤0 时调一次 `onDeath`，返回 pickups
+- **Bug #32 触发型技能缺少特效**：`ammo_supply`（弹药补给）、`soul_drain`（灵魂汲取）、`thorns`（荆棘反射）三个技能触发时无视觉反馈 → `FX.spawn` 补全三种特效
+
+### 功能新增
+- **控制台 `win` 指令**：一键触发胜利流程（测试用），`Game._triggerVictory()` + console `onVictory` 回调
+- **胜利结算界面**：`gameover.lua` 重构，根据 `isVictory` 标记切换画面：胜利显示金色 `★ VICTORY ★` + 绿字副标题，深绿背景；死亡保持原红色 GAME OVER
+- **i18n 补全**：`gameover.victory_title` / `gameover.victory_sub`
+
+**测试：** 115 passed, 0 failed
+
+---
+
 ## [2026-03-21] Phase 9 — 节奏控制器 + Boss 系统 + 精英/远程敌人
 
 **做了什么：**
@@ -15,8 +34,8 @@
 
 ### 改动文件
 - `config/enemies.lua` — 新增 elite（精英怪）和 ranger（远程敌人）配置
-- `src/entities/enemy.lua` — Phase 9 重写：精英怪金色光环 + 加深颜色，远程敌人保距 AI（150-280px）+ 定时射击，修复文件内重复内容
-- `src/systems/spawner.lua` — 接入 RhythmController 参数，支持精英怪/远程敌人生成，远程敌人注入共享投射物列表
+- `src/entities/enemy.lua` — Phase 9 重写：精英怪金色光环 + 加深颜色，远程敌人保距 AI（150-280px）+ 定时射击，清理重复内容
+- `src/systems/spawner.lua` — 接入 RhythmController，支持精英/远程敌人生成，远程敌人注入共享投射物列表
 - `src/systems/collision.lua` — 新增 `projectilesVsBoss()`（玩家子弹 vs Boss）和 `enemyProjectilesVsPlayer()`（敌方投射物 vs 玩家）
 - `src/states/game.lua` — 接入 RhythmController + Boss 实体：Boss 登场/更新/召唤小兵/胜利判断，屏幕顶部 Boss 血条，右上角计时器+节奏阶段显示，胜利画面覆盖
 - `config/i18n/zh.lua` — 新增 Boss 名称 x4，胜利文本 x2
@@ -29,6 +48,18 @@
 - 节奏阶段：calm → rising → peak → rest（每 120 秒一循环）→ surge（16 分钟后）
 
 **测试：** 115 passed, 0 failed
+
+---
+
+## [2026-03-21] Phase 8 收尾 — 背包技能面板重设计 + Bug #30/#31 修复
+
+**做了什么：**
+
+- **背包技能面板重设计**：独立面板模式，Q/E 键切换武器/技能面板，技能面板全宽显示，左列列表+右列详情
+- **Bug #30**：技能栏在无技能时不显示 → 移除 `if not hasAny then return end` 早返回
+- **Bug #31**：背包技能面板为空 → 两处修复：(1) 非暂停时打开背包缺少 `player` 参数；(2) 旧 `_drawSkillList` 局部变量覆盖了模块常量 `GRID_X`
+- **中文乱码修复**：`_drawHint` 渲染前未设置字体，加 `Font.set(13)` 修复
+- **run.bat**：新增一键启动脚本
 
 ---
 

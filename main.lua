@@ -76,10 +76,11 @@ function love.keypressed(key, scancode, isrepeat)
         local Game = require("src.states.game")
         if curState == Game then
             StateManager.push("console", {
-                player   = Game._getPlayer(),
-                enemies  = Game._getEnemies(),
-                spawner  = Game._getSpawner(),
+                player    = Game._getPlayer(),
+                enemies   = Game._getEnemies(),
+                spawner   = Game._getSpawner(),
                 onLevelUp = Game._triggerLevelUp,
+                onVictory = Game._triggerVictory,
             })
             return
         end
