@@ -260,9 +260,9 @@ end
 function LegacySelect:keypressed(key)
     if self._confirmed then return end
 
-    if key == "left" then
+    if key == "left" or key == "a" then
         self._selected = math.max(1, self._selected - 1)
-    elseif key == "right" then
+    elseif key == "right" or key == "d" then
         self._selected = math.min(3, self._selected + 1)
     elseif key == "return" then
         local chosen = self._candidates[self._selected]

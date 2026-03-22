@@ -190,9 +190,9 @@ end
 function ReviveUI:keypressed(key)
     if self._confirmed then return end
 
-    if key == "left" then
+    if key == "left" or key == "a" then
         self._selected = 1
-    elseif key == "right" then
+    elseif key == "right" or key == "d" then
         self._selected = 2
     elseif key == "return" then
         self._confirmed = true

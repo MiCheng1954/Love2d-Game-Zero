@@ -15,6 +15,7 @@ local Experience = require("src.systems.experience")
 local SkillSynergy   = require("src.systems.skillSynergy")
 local FX             = require("src.systems.skillEffects")   -- Phase 8 需求1
 local RhythmController = require("src.systems.rhythmController")  -- Phase 9
+local LegacyManager    = require("src.systems.legacyManager")      -- Phase 10
 local Player     = require("src.entities.player")
 local Projectile = require("src.entities.projectile")
 local Weapon     = require("src.entities.weapon")
@@ -427,7 +428,8 @@ function Game:update(dt)
                 end,
             })
         else
-            -- 无复活机会：直接跳转死亡结算
+            -- 无复活机会：直接跳转死亡结算，清除传承（没有选传承机会）
+            LegacyManager.clear()
             StateManager.switch("gameover", summaryData)
         end
         return
@@ -438,6 +440,8 @@ function Game:update(dt)
         _victoryTimer = _victoryTimer - dt
         if _victoryTimer <= 0 then
             local StateManager = require("src.states.stateManager")
+            -- 胜利通关：清除传承存档（胜利不触发传承选择）
+            LegacyManager.clear()
             StateManager.switch("gameover", {
                 isVictory    = true,
                 elapsed      = _rhythm:getElapsed(),

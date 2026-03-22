@@ -64,4 +64,8 @@
   {"id":32,"desc":"触发形的技能在触发的时候也需要特效","time":"2026-03-22 00:50:33","priority":3,"status":"fixed","fixedTime":"2026-03-22","log":{"level":12,"hp":210,"elapsed":93.4,"enemies":72,"logSnapshot":"logs/bug_32_20260322_005033.log"}}
 ,
   {"id":33,"desc":"似乎有些武器无法对boss生效，看下什么原因","time":"2026-03-22 00:54:57","priority":3,"status":"fixed","fixedTime":"2026-03-22","log":{"level":23,"hp":375,"elapsed":258.6,"enemies":5,"logSnapshot":"logs/bug_33_20260322_005457.log"}}
+,
+  {"id":34,"desc":"传承选择界面无法通过wasd移动光标","time":"2026-03-22 13:10:16","priority":3,"status":"fixed","fixedTime":"2026-03-22","log":{"level":5,"hp":0,"elapsed":43.7,"enemies":14,"logSnapshot":"logs/bug_34_20260322_131016.log"}}
+,
+  {"id":35,"desc":"传承技能没有正确的消耗掉，每一局结束的时候需要将传承技能清理掉","time":"2026-03-22 13:12:39","priority":3,"status":"fixed","fixedTime":"2026-03-22","log":{"level":1,"hp":100,"elapsed":5.9,"enemies":2,"logSnapshot":"logs/bug_35_20260322_131239.log"}}
 ]
