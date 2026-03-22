@@ -833,6 +833,13 @@ function BagUI:_getSkillList()
     for _, inst in ipairs(sm:getPassives()) do
         table.insert(list, { inst = inst, slotKey = nil })
     end
+
+    -- Phase 10：将传承技能追加到列表末尾（金色角标「传承」区分）
+    local legacy = self._player._legacyData
+    if legacy then
+        table.insert(list, { isLegacy = true, legacy = legacy })
+    end
+
     return list
 end
 
@@ -887,8 +894,6 @@ function BagUI:_drawSkillPanel()
     curY = curY + lh
 
     for i, entry in ipairs(list) do
-        local inst     = entry.inst
-        local cfg      = inst.cfg
         local selected = (i == self._skillCursor)
 
         if selected then
@@ -901,21 +906,40 @@ function BagUI:_drawSkillPanel()
             love.graphics.setColor(0.7, 0.7, 0.75)
         end
 
-        -- 名称 + 等级
-        local name = T(cfg.nameKey)
-        love.graphics.print(name .. "  Lv" .. inst.level, areaX + 2, curY)
-
-        -- 右侧小标签（按键 / 被动）
-        Font.set(11)
-        if entry.slotKey then
-            love.graphics.setColor(selected and 0.8 or 0.45, selected and 0.6 or 0.35, selected and 1.0 or 0.7)
-            love.graphics.printf("[" .. (slotLabel[entry.slotKey] or "?") .. "]",
-                areaX, curY + 2, listW - 2, "right")
+        if entry.isLegacy then
+            -- 传承条目：金色名称
+            local name = T(entry.legacy.nameKey)
+            if selected then
+                love.graphics.setColor(1.0, 0.95, 0.6)
+            else
+                love.graphics.setColor(0.9, 0.78, 0.3)
+            end
+            love.graphics.print(name, areaX + 2, curY)
+            -- 右侧「传承」金色角标
+            Font.set(11)
+            love.graphics.setColor(selected and 1.0 or 0.75, selected and 0.85 or 0.65, 0.2)
+            love.graphics.printf("[传承]", areaX, curY + 2, listW - 2, "right")
+            Font.set(13)
         else
-            love.graphics.setColor(selected and 0.6 or 0.4, selected and 0.85 or 0.6, selected and 0.6 or 0.45)
-            love.graphics.printf("[被动]", areaX, curY + 2, listW - 2, "right")
+            local inst = entry.inst
+            local cfg  = inst.cfg
+
+            -- 名称 + 等级
+            local name = T(cfg.nameKey)
+            love.graphics.print(name .. "  Lv" .. inst.level, areaX + 2, curY)
+
+            -- 右侧小标签（按键 / 被动）
+            Font.set(11)
+            if entry.slotKey then
+                love.graphics.setColor(selected and 0.8 or 0.45, selected and 0.6 or 0.35, selected and 1.0 or 0.7)
+                love.graphics.printf("[" .. (slotLabel[entry.slotKey] or "?") .. "]",
+                    areaX, curY + 2, listW - 2, "right")
+            else
+                love.graphics.setColor(selected and 0.6 or 0.4, selected and 0.85 or 0.6, selected and 0.6 or 0.45)
+                love.graphics.printf("[被动]", areaX, curY + 2, listW - 2, "right")
+            end
+            Font.set(13)
         end
-        Font.set(13)
 
         curY = curY + lh
     end
@@ -929,6 +953,32 @@ function BagUI:_drawSkillPanel()
 
     local sel = list[self._skillCursor]
     if not sel then
+        Font.reset()
+        return
+    end
+
+    -- Phase 10：传承条目单独渲染详情
+    if sel.isLegacy then
+        local leg = sel.legacy
+        -- 标题（金色）
+        Font.set(15)
+        love.graphics.setColor(1.0, 0.88, 0.3)
+        love.graphics.print(T(leg.nameKey), detX, detY)
+        -- 「传承」标签
+        Font.set(12)
+        love.graphics.setColor(1.0, 0.75, 0.2)
+        love.graphics.print("◈  传承被动  [" .. (leg.category or "?") .. "]", detX, detY + 22)
+        -- 描述
+        Font.set(13)
+        love.graphics.setColor(0.68, 0.68, 0.68)
+        love.graphics.printf(T(leg.descKey), detX, detY + 44, detW, "left")
+        -- 分割线
+        love.graphics.setColor(0.3, 0.3, 0.4)
+        love.graphics.line(detX, detY + 90, detX + detW, detY + 90)
+        -- 说明
+        Font.set(12)
+        love.graphics.setColor(0.55, 0.55, 0.55)
+        love.graphics.printf("传承效果已在本局生效，作为隐形被动持续有效。\n下局开始时自动应用，不占用技能槽。", detX, detY + 102, detW, "left")
         Font.reset()
         return
     end
