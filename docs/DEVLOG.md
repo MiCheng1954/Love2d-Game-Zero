@@ -4,6 +4,127 @@
 
 ---
 
+## [2026-03-24] Phase 12 — 场景扩展
+
+**做了什么：** 实现多场景框架，新增苍茫平原与封闭竞技场两个可玩场景，专属冲锋者 Boss，场景选择界面；修复 Bug #45–#53。
+
+### 新增文件
+
+| 文件 | 内容 |
+|------|------|
+| `src/scenes/baseScene.lua` | 场景基类，定义 `onEnter/onExit/update/draw/getSpawnOverride` 通用接口 |
+| `src/scenes/plains.lua` | 苍茫平原：无限延伸、随机草地视觉障碍物、柔和绿色风格 |
+| `src/scenes/arena.lua` | 封闭竞技场：2560×1440 固定边界、边界环境伤害、四壁生成点、墙壁绘制 |
+| `src/systems/sceneManager.lua` | 场景管理器单例：`register/set/get/enter/exit` |
+| `src/states/sceneSelect.lua` | 场景选择界面（push/pop）：← → 切换场景卡片，Enter 确认进入游戏 |
+| `config/scenes.lua` | 场景配置数据：bounds/difficulty/soulsMultiplier/bossPool 等 |
+
+### 修改文件
+
+| 文件 | 内容 |
+|------|------|
+| `src/entities/boss.lua` | 新增 `_windupTimer` 字段，蓄力阶段先降速+橙色警示圈，蓄力结束后转为 800px/s 冲刺 |
+| `config/bosses.lua` | 新增第 5 个 Boss：冲锋者（charger），竞技场专属，hp=3000，蓄力冲刺+踩踏技能 |
+| `src/states/game.lua` | 接入 SceneManager：每帧委托 `scene:update/draw`；从 `scene:getSpawnOverride()` 获取自定义生成函数；charger 死亡时炸出 6 个快速小兵 |
+| `src/states/menu.lua` | "开始游戏" 改为 `StateManager.push("sceneSelect")` |
+| `src/systems/skillEffects.lua` | 新增 `FX.syncBuffs(player)`：每帧同步持续性 Buff 视觉（overload/battle_cry/rage/mana_shield 轨道光环） |
+| `main.lua` | 注册 sceneSelect 状态，注册并设置 plains/arena 场景 |
+| `config/i18n/zh.lua` | 新增场景选择界面文本、场景名称/描述/难度标签、冲锋者 Boss 名称 |
+
+### 游戏设计
+
+- **苍茫平原**：无边界，标准节奏，随机分布草堆/石块视觉装饰
+- **封闭竞技场**：2560×1440 边界，边界 80px 内线性掉血（5–25/s），四壁随机生成点，灵魂掉落×1.3
+- **冲锋者 Boss**：PATROL → 蓄力 0.6s（橙色警示圈+减速） → CHARGE 800px/s 0.5s → 死亡分裂 6 个快速小兵
+- **场景选择界面**：平原/竞技场卡片，含难度徽章、掉落倍率注脚、几何预览图
+
+### Bug 修复
+
+| Bug | 描述 | 修复方案 |
+|-----|------|---------|
+| #45 | 血量显示小数 | arena 边界掉血改用 `math.floor` 整数化 |
+| #46 | 边界掉血频率太低 | 移除计时器间隔，改为每帧线性 `dmg = dmgPerSec * dt` |
+| #48 | 刷新技能选项未应用 canShow 过滤 | `_shuffleOptions()` 同初始进入一样先过滤再打乱 |
+| #50 | 技能选择取消直接结束整个升级流程 | `onCancel` 只 `pop skillSelectUI`，不调用 `ctx.onDone()` |
+| #51 | 灵魂刷新技能时机错误 | option 层刷新加 `_selCatId ~= "skill"` 判断；技能大类隐藏刷新提示 |
+| #52 | 竞技场边角红色警告区不连续 | 四条边带全部使用完整宽/高，角落自然双层叠加 |
+| #53 | 刷新候选全部替换 | `onRefresh` 改为只替换当前光标处单个选项，返回一个新 id |
+
+**测试：** 147 passed, 0 failed
+
+---
+
+## [2026-03-23] Phase 11 — HUD 与 UI 完善
+
+**做了什么：** 完善局内常驻 HUD、主菜单界面，实现触发器 UI，新增 UI 通用组件库。
+
+### 新增文件
+
+| 文件 | 内容 |
+|------|------|
+| `src/ui/hud.lua` | 拆离 game.lua 中的 HUD 绘制逻辑：血量条（低血闪烁）、经验条、计时器、灵魂数、技能栏、传承图标、激活羁绊列表 |
+| `src/ui/triggerUI.lua` | 触发器拾取奖励展示界面（push/pop），固定奖励展示，3 秒自动关闭或按键确认 |
+| `src/ui/components.lua` | 通用 UI 组件库：`drawBar/drawCard/drawBadge/drawIcon` 等复用函数 |
+
+### 修改文件
+
+| 文件 | 内容 |
+|------|------|
+| `src/states/game.lua` | HUD 绘制委托给 `hud.lua`；拾取触发器时推入 triggerUI |
+| `src/states/menu.lua` | 完善主菜单：标题代码绘制 Logo、背景粒子动画、菜单项高亮、退出确认 |
+| `config/i18n/zh.lua` | 新增 HUD/触发器/主菜单相关文本 |
+
+### Bug 修复
+
+| Bug | 描述 | 修复方案 |
+|-----|------|---------|
+| #37 | 魔法护盾效果期间需要在角色周围显示护盾效果（半透明蓝圈），同时护甲效果也要有对应的视觉效果，要有控制的管理 | `FX.syncBuffs()` 每帧同步 mana_shield 轨道光环；护盾吸收时调用 `bm:remove` |
+| #38 | 全局减速的 buff 效果没有显示时长 | Buff HUD 条（时长进度条）集成进 hud.lua |
+| #39 | 被替换出槽位的技能还会显示在背包里的技能列表 | `buildCandidates` 排除 `sm._replacedSkills` 中的技能 id |
+| #40 | 胜利结束后还会弹出传承/复活选择界面 | `reviveUI` 进入前判断 `isVictory` 标记，胜利时直接跳结算 |
+| #41 | 远程敌人射出的子弹颜色要区分玩家的一些，颜色要稍微暗一些 | 敌方子弹颜色改为橙红色（0.9, 0.4, 0.1） |
+| #42 | 技能 8 个以上之后左下角的技能 list 显示不下了，可以扩展一下，支持多行显示 | `_drawSkillBar` 改为多行布局，超过 4 个被动时自动换行 |
+| #43 | 敌人子弹的颜色要和玩家的一些区别 | 同 #41 |
+| #44 | 日志打印文件里有乱码，需要去掉:这几个字符 | `log.lua` 输出前过滤非 ASCII/中文的控制字符 |
+
+**测试：** 115 passed, 0 failed（Phase 11 未新增单元测试，集中在 UI 层）
+
+---
+
+## [2026-03-23] Phase 10.1 — Buff 管理器系统
+
+**做了什么：** 用正式的 BuffManager 替换 player.lua 中散落的 `_xxxTimer` 临时实现，统一所有状态 buff 接口，新增 Buff HUD 显示。
+
+### 新增文件
+
+| 文件 | 内容 |
+|------|------|
+| `src/systems/buffManager.lua` | Buff 管理器：`add/has/get/remove/update/getAll/clear`；timer 型（刷新取 max）和 stack 型分表存储 |
+| `config/buffs.lua` | 7 个 Buff 定义：invincible/battle_cry/rage/overload/mana_shield/soul_drain_range/ammo_supply（stack型） |
+| `tests/systems/test_buffManager.lua` | 约 20 个 BuffManager 单元测试 |
+
+### 修改文件
+
+| 文件 | 内容 |
+|------|------|
+| `src/entities/player.lua` | 删除 `_invincibleTimer`，改为 `_buffManager = BuffManager.new()`；`takeDamage` 改用 `bm:has("invincible")` |
+| `src/systems/skillManager.lua` | 删除 5 段 `_xxxTimer` 衰减 if 块（battle_cry/rage/overload/shield/soulDrain）；保留 global_slow 衰减 |
+| `config/skills.lua` | 6 个技能 effect 改为调用 `bm:add(...)`；ammo_supply 改为 `bm:addStack(...)` |
+| `src/states/game.lua` | 复活无敌帧改为 `bm:add("invincible", 3.0)`；死亡前调 `bm:clear()` 还原属性 |
+| `config/i18n/zh.lua` | 新增 8 个 `buff.xxx.name` 键 |
+| `tests/systems/test_skillManager.lua` | stub 补充 `_buffManager` 字段 |
+
+### 设计要点
+
+- **刷新策略**：`add()` 取 `max(remaining, duration)`，仅首次调 `onApply`（防止 battle_cry/rage 连续叠加攻击力）
+- **overload 安全**：武器×2 逻辑在 `not bm:has("overload")` 时执行，刷新不重复翻倍
+- **死亡还原**：死亡处理前调 `bm:clear()` 确保 battle_cry/rage 等还原 player.attack
+- **global_slow**：保留在 skillManager（与 spawner 耦合），HUD 通过 `sm:getGlobalSlow() > 0` 合成虚拟条目
+
+**测试：** 135 passed, 0 failed（新增约 20 个 test_buffManager 用例）
+
+---
+
 ## [2026-03-22] Phase 10 — 结算、传承与复活
 
 **做了什么：**

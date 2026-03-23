@@ -10,8 +10,9 @@ local Projectile = setmetatable({}, { __index = Entity })
 Projectile.__index = Projectile
 
 -- 投射物外观配置
-local PROJECTILE_RADIUS = 5             -- 投射物碰撞圆半径（像素）
-local PROJECTILE_COLOR  = {1, 0.9, 0.2} -- 投射物颜色（黄色）
+local PROJECTILE_RADIUS = 5              -- 投射物碰撞圆半径（像素）
+local PROJECTILE_COLOR  = {1, 0.9, 0.2} -- 玩家投射物颜色（黄色）
+local ENEMY_PROJ_COLOR  = {1.0, 0.25, 0.1} -- 敌方投射物颜色（红橙）
 
 -- 构造函数，创建一个新的投射物实例
 -- @param x:      初始世界坐标 X（通常为发射者位置）
@@ -93,16 +94,13 @@ function Projectile:draw()
         love.graphics.draw(self._sprite, self.x, self.y, 0, 1, 1,
             self._radius, self._radius)
     else
-        -- 无资产时：代码绘制 fallback
-        love.graphics.setColor(PROJECTILE_COLOR)
+        -- 无资产时：代码绘制 fallback，根据来源区分颜色
+        local col = self._isEnemyProjectile and ENEMY_PROJ_COLOR or PROJECTILE_COLOR
+        love.graphics.setColor(col)
         love.graphics.circle("fill", self.x, self.y, self._radius)
 
         -- 发光效果（外圈半透明）
-        love.graphics.setColor(
-            PROJECTILE_COLOR[1],
-            PROJECTILE_COLOR[2],
-            PROJECTILE_COLOR[3],
-            0.3)
+        love.graphics.setColor(col[1], col[2], col[3], 0.3)
         love.graphics.circle("fill", self.x, self.y, self._radius * 2)
     end
 end

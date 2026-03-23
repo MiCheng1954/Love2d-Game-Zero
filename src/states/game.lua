@@ -16,6 +16,8 @@ local SkillSynergy   = require("src.systems.skillSynergy")
 local FX             = require("src.systems.skillEffects")   -- Phase 8 需求1
 local RhythmController = require("src.systems.rhythmController")  -- Phase 9
 local LegacyManager    = require("src.systems.legacyManager")      -- Phase 10
+local HUD              = require("src.ui.hud")                     -- Phase 11
+local SceneManager     = require("src.systems.sceneManager")       -- Phase 12
 local Player     = require("src.entities.player")
 local Projectile = require("src.entities.projectile")
 local Weapon     = require("src.entities.weapon")
@@ -96,9 +98,21 @@ function Game:enter()
     -- Phase 9：初始化节奏控制器
     _rhythm = RhythmController.new()
 
+    -- Phase 12：通知场景进入，传入 Spawner 自定义生成函数
+    local scene = SceneManager.get()
+    if scene then
+        SceneManager.enter(_player)
+        local spawnFn = scene:getSpawnOverride()
+        if type(spawnFn) == "function" then
+            _spawner:setSpawnOverride(spawnFn)
+        end
+    end
+
     -- 初始化经验系统，注册升级回调
     _experience = Experience.new(_player)
     _experience:onLevelUp(function(player, newLevel)
+        -- Bug#40：胜利后不再弹出升级界面
+        if _victory then return end
         _pendingUpgrade = {
             player = player,
             newLevel = newLevel,
@@ -108,6 +122,9 @@ end
 
 -- 退出游戏状态时调用
 function Game:exit()
+    -- Phase 12：通知场景退出
+    SceneManager.exit()
+
     Timer.clear()
     _player          = nil
     _camera          = nil
@@ -225,6 +242,10 @@ function Game:update(dt)
         FX.spawn(firedId, _player, skillCtx)
     end
     FX.update(dt)   -- 需求1：更新技能视觉特效
+    FX.syncBuffs(_player)   -- Bug#49：同步 Buff 持续特效（超载/战吼/狂怒/护盾）
+
+    -- Phase 11：更新 HUD 内部动画（低血量脉冲等）
+    HUD.update(dt)
 
     -- 更新升级提示倒计时
     if _levelUpNotice.active then
@@ -241,8 +262,18 @@ function Game:update(dt)
     _rhythm:update(dt)
 
     -- Phase 9：消费待触发的 Boss
+    -- Phase 12：若场景有专属 bossPool，只触发 pool 内的 Boss
     local pendingBosses = _rhythm:getPendingBosses()
+    local sceneBossPool = scene and scene:getBossPool()
     for _, bossCfg in ipairs(pendingBosses) do
+        -- 场景 bossPool 过滤：若场景定义了专属池，跳过不在池内的 Boss
+        if sceneBossPool then
+            local inPool = false
+            for _, poolId in ipairs(sceneBossPool) do
+                if poolId == bossCfg.id then inPool = true; break end
+            end
+            if not inPool then goto skipBoss end
+        end
         if not _boss or _boss._isDead then
             -- 在玩家周围随机方向 600px 处生成 Boss
             local angle = math.random() * math.pi * 2
@@ -251,8 +282,9 @@ function Game:update(dt)
             _boss = Boss.new(bx, by, bossCfg)
             _boss:setTarget(_player)
             _boss:setProjectileList(_projectiles)
-            Log.info("Boss 登场：" .. bossCfg.id .. "（phase " .. bossCfg.phase .. "min）")
+            Log.info("Boss 登场：" .. bossCfg.id .. "（phase " .. (bossCfg.phase or "?") .. "min）")
         end
+        ::skipBoss::
     end
 
     -- Phase 9：更新 Boss
@@ -285,7 +317,23 @@ function Game:update(dt)
     end
 
     -- 更新生成系统（传入节奏控制器参数）
-    _spawner:update(dt, _rhythm:getSpawnParams(), _rhythm:getElapsed())
+    local spawnParams = _rhythm:getSpawnParams()
+    -- Phase 12：场景可缩短生成间隔
+    local scene = SceneManager.get()
+    if scene then
+        local so = scene._cfg and scene._cfg.spawnOverride
+        if so and so.intervalScale then
+            spawnParams = {
+                interval     = spawnParams.interval * so.intervalScale,
+                batchSize    = spawnParams.batchSize,
+                eliteChance  = spawnParams.eliteChance,
+                rangerChance = spawnParams.rangerChance,
+            }
+        end
+        -- 场景逻辑更新（竞技场边界伤害等）
+        scene:update(dt, _player)
+    end
+    _spawner:update(dt, spawnParams, _rhythm:getElapsed())
 
     -- 更新所有敌人
     for _, enemy in ipairs(_enemies) do
@@ -329,6 +377,19 @@ function Game:update(dt)
             Log.info("Boss 击败：" .. _boss._typeName .. "  isFinal=" .. tostring(_boss._isFinal))
             -- Phase 10：记录被击杀的 Boss
             table.insert(_killedBosses, _boss._typeName or _boss._bossName or "unknown")
+            -- Phase 12：冲锋者死亡分裂为 6 只 fast 小兵
+            if _boss._typeName == "charger" then
+                local Enemy = require("src.entities.enemy")
+                for i = 1, 6 do
+                    local angle  = (i / 6) * math.pi * 2
+                    local mx     = _boss.x + math.cos(angle) * 60
+                    local my     = _boss.y + math.sin(angle) * 60
+                    local minion = Enemy.new(mx, my, "fast")
+                    minion:setTarget(_player)
+                    table.insert(_enemies, minion)
+                end
+                Log.info("冲锋者分裂：生成 6 只 fast 小兵")
+            end
             if _boss._isFinal then
                 _victory = true
                 _victoryTimer = VICTORY_DELAY
@@ -348,15 +409,27 @@ function Game:update(dt)
     for _, enemy in ipairs(_enemies) do
         if enemy._isDead and enemy._dropProcessed == false then
             enemy._dropProcessed = true
+            -- Phase 12：场景掉落倍率
+            local dropMult = { soul = 1.0, exp = 1.0 }
+            local activeScene = SceneManager.get()
+            if activeScene then
+                local dm = activeScene:getDropMultiplier()
+                if dm then
+                    dropMult.soul = dm.soul or 1.0
+                    dropMult.exp  = dm.exp  or 1.0
+                end
+            end
             -- 手动生成掉落（复用 enemy 的配置值，避免重复调用 onDeath）
             if enemy._expDrop and enemy._expDrop > 0 then
-                table.insert(_pickups, Pickup.new(enemy.x, enemy.y, Pickup.TYPE.EXP, enemy._expDrop))
+                local expAmt = math.floor(enemy._expDrop * dropMult.exp)
+                table.insert(_pickups, Pickup.new(enemy.x, enemy.y, Pickup.TYPE.EXP, expAmt))
             end
             if enemy._soulDrop and enemy._soulDrop > 0 then
+                local soulAmt = math.floor(enemy._soulDrop * dropMult.soul)
                 table.insert(_pickups, Pickup.new(
                     enemy.x + math.random(-10, 10),
                     enemy.y + math.random(-10, 10),
-                    Pickup.TYPE.SOUL, enemy._soulDrop))
+                    Pickup.TYPE.SOUL, soulAmt))
             end
             -- 通知技能系统击杀事件（触发 onkill 被动技能）
             sm:onKill(_player, enemy, skillCtx)
@@ -373,6 +446,8 @@ function Game:update(dt)
 
     -- 检测玩家死亡（Phase 10：接入复活/传承系统）
     if _player:isDead() then
+        -- Phase 10.1：死亡前清除所有 Buff，确保属性（attack 等）还原
+        _player._buffManager:clear(_player)
         Log.info(string.format("玩家死亡 — Lv%d  elapsed=%.1fs  enemies=%d  kills=%d",
             _player:getLevel(), _rhythm:getElapsed(), #_enemies, _killCount))
         local StateManager = require("src.states.stateManager")
@@ -409,8 +484,8 @@ function Game:update(dt)
                             e._isDead = true
                         end
                     end
-                    -- 施加无敌帧（简化版，Phase 10.1 改为 Buff 管理器）
-                    _player._invincibleTimer = 3.0
+                    -- 施加无敌帧（Phase 10.1：通过 BuffManager 管理）
+                    _player._buffManager:add("invincible", 3.0, {}, _player)
                     Log.info("玩家复活！剩余复活次数：" .. _player._revives)
                 end,
                 onLegacy    = function()
@@ -488,6 +563,8 @@ function Game:update(dt)
     -- ESC 返回菜单：移至 keypressed 事件处理，避免控制台/面板关闭时的按键残留穿透
 
     -- 处理待跳转升级界面（必须放在 update 最末尾，防止 exit 破坏帧内状态）
+    -- Bug#40：胜利后清除待处理升级，不再弹出
+    if _victory then _pendingUpgrade = nil end
     if _pendingUpgrade then
         local data = _pendingUpgrade
         _pendingUpgrade = nil
@@ -558,11 +635,12 @@ function Game._updateAutoAttack(dt)
     local effectiveCritRate   = _player.critRate   + (mergedPsb.critChance or 0) / 100
     local effectiveCritDamage = _player.critDamage + (mergedPsb.critMult   or 0) / 100
 
-    -- Phase 8：弹药强化加成
+    -- Phase 10.1：弹药强化改用 BuffManager stack 型 Buff
     local ammoMultiplier = 1
-    if _player._ammoSupplyStacks and _player._ammoSupplyStacks > 0 then
+    local bm = _player._buffManager
+    if bm and bm:has("ammo_supply") then
         ammoMultiplier = 2
-        _player._ammoSupplyStacks = _player._ammoSupplyStacks - 1
+        bm:consumeStack("ammo_supply", _player)
     end
 
     if #weapons > 0 then
@@ -651,8 +729,14 @@ function Game:draw()
     -- == 世界层（摄像机坐标系）==
     _camera:attach()
 
-    -- 背景网格
-    Game._drawGrid()
+    -- Phase 12：场景背景绘制（最底层，替换/叠加默认网格）
+    local scene = SceneManager.get()
+    if scene then
+        scene:draw(_camera)
+    else
+        -- 无场景时回退默认网格
+        Game._drawGrid()
+    end
 
     -- 绘制所有掉落物（最底层）
     for _, pickup in ipairs(_pickups) do
@@ -677,6 +761,59 @@ function Game:draw()
     -- 绘制玩家（最上层）
     _player:draw()
 
+    -- Bug#37：魔法护盾持续光环特效（世界坐标，叠在玩家之上）
+    local bm = _player._buffManager
+    if bm and bm:has("mana_shield") then
+        local entry = bm:get("mana_shield")
+        -- 呼吸脉冲：0.6 秒一周期
+        local pulse = (math.sin(love.timer.getTime() * math.pi / 0.6) + 1) * 0.5
+        local shieldR = (_player.size or 12) + 10 + pulse * 4
+        -- 外圈：蓝紫色半透明
+        love.graphics.setColor(0.45, 0.3, 0.95, 0.25 + 0.15 * pulse)
+        love.graphics.circle("fill", _player.x, _player.y, shieldR)
+        -- 圆边框
+        love.graphics.setColor(0.6, 0.4, 1.0, 0.7 + 0.25 * pulse)
+        love.graphics.setLineWidth(2)
+        love.graphics.circle("line", _player.x, _player.y, shieldR)
+        -- 旋转能量粒子（6个点均匀分布）
+        local t = love.timer.getTime()
+        for i = 0, 5 do
+            local angle = t * 1.8 + i * math.pi / 3
+            local px = _player.x + math.cos(angle) * shieldR
+            local py = _player.y + math.sin(angle) * shieldR
+            love.graphics.setColor(0.8, 0.6, 1.0, 0.85)
+            love.graphics.circle("fill", px, py, 2.5)
+        end
+        love.graphics.setLineWidth(1)
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
+    -- 需求#13：战吼激活期间跟随特效（红橙色能量环 + 旋转火焰粒子）
+    if bm and bm:has("battle_cry") then
+        local t     = love.timer.getTime()
+        local pulse = (math.sin(t * math.pi / 0.4) + 1) * 0.5  -- 快速脉冲
+        local baseR = (_player.size or 12) + 8
+        local outerR = baseR + pulse * 5
+        -- 外圈：橙红色半透明光晕
+        love.graphics.setColor(1.0, 0.35, 0.0, 0.18 + 0.12 * pulse)
+        love.graphics.circle("fill", _player.x, _player.y, outerR)
+        -- 圆边框：红色
+        love.graphics.setColor(1.0, 0.2, 0.0, 0.65 + 0.25 * pulse)
+        love.graphics.setLineWidth(2)
+        love.graphics.circle("line", _player.x, _player.y, outerR)
+        -- 旋转火焰粒子（4个，逆时针）
+        for i = 0, 3 do
+            local angle = -t * 2.5 + i * math.pi / 2
+            local pr = baseR + 6 + pulse * 3
+            local px = _player.x + math.cos(angle) * pr
+            local py = _player.y + math.sin(angle) * pr
+            love.graphics.setColor(1.0, 0.5 + 0.3 * pulse, 0.0, 0.9)
+            love.graphics.circle("fill", px, py, 3)
+        end
+        love.graphics.setLineWidth(1)
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
     -- 需求1：绘制技能视觉特效（世界坐标系，在玩家之上，screen_flash 除外）
     FX.draw(0, 0)  -- 已在 camera:attach() 内，世界坐标直接使用
 
@@ -685,7 +822,20 @@ function Game:draw()
     -- == UI 层（屏幕坐标系）==
     -- 需求1：全屏闪烁特效（需在 camera 坐标之外）
     FX.drawScreenEffects()
-    Game._drawHUD()
+
+    -- Phase 11：委托 HUD 模块绘制全部界面元素
+    HUD.draw({
+        player        = _player,
+        skillManager  = _player:getSkillManager(),
+        rhythm        = _rhythm,
+        boss          = _boss,
+        paused        = _paused,
+        victory       = _victory,
+        levelUpNotice = _levelUpNotice,
+        enemies       = _enemies,
+        projectiles   = _projectiles,
+        pickups       = _pickups,
+    })
 end
 
 -- 绘制背景参考网格
@@ -705,433 +855,6 @@ function Game._drawGrid()
 
     love.graphics.setColor(0.3, 0.3, 0.4)
     love.graphics.circle("fill", 0, 0, 4)
-end
-
--- 绘制局内 HUD
-function Game._drawHUD()
-    -- HP 条背景
-    love.graphics.setColor(0.2, 0.2, 0.2)
-    love.graphics.rectangle("fill", 20, 20, 200, 16)
-
-    -- HP 条前景
-    local hpRatio = _player.hp / _player.maxHp
-    love.graphics.setColor(0.8, 0.2, 0.2)
-    love.graphics.rectangle("fill", 20, 20, 200 * hpRatio, 16)
-
-    -- HP 条边框
-    love.graphics.setColor(0.5, 0.5, 0.5)
-    love.graphics.rectangle("line", 20, 20, 200, 16)
-
-    -- HP 文字
-    love.graphics.setColor(1, 1, 1)
-    Font.set(13)
-    love.graphics.print(T("hud.hp") .. " " .. _player.hp .. " / " .. _player.maxHp, 24, 22)
-
-    -- 经验条背景
-    love.graphics.setColor(0.2, 0.2, 0.2)
-    love.graphics.rectangle("fill", 20, 42, 200, 10)
-
-    -- 经验条前景
-    love.graphics.setColor(0.2, 0.8, 0.4)
-    love.graphics.rectangle("fill", 20, 42, 200 * _player:getExpProgress(), 10)
-
-    -- 等级、灵魂、敌人数、掉落物数
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print(T("hud.level") .. _player:getLevel(), 20, 58)
-    love.graphics.print(T("hud.souls") .. ": " .. _player:getSouls(), 20, 76)
-    love.graphics.print(T("hud.enemies") .. ": " .. #_enemies, 20, 94)
-
-    -- 需求4：右上角显示当前激活的羁绊（武器羁绊 + 技能羁绊）
-    local activeSynergies = _player:getBag()._activeSynergies or {}
-    -- Phase 8：技能羁绊
-    local sm = _player:getSkillManager()
-    local skillPsb2 = {}
-    sm:recalcPassive(skillPsb2)
-    local skillActiveSynHUD = SkillSynergy.recalculate(sm, skillPsb2)
-    local allSynergies = {}
-    for _, s in ipairs(activeSynergies)    do table.insert(allSynergies, s) end
-    for _, s in ipairs(skillActiveSynHUD)  do table.insert(allSynergies, s) end
-
-    if #allSynergies > 0 then
-        Font.set(13)
-        local sx = 1280 - 20
-        local sy = 20
-        local lh = 20
-        love.graphics.setColor(1.0, 0.85, 0.3)
-        love.graphics.printf("[羁绊]", sx - 200, sy, 200, "right")
-        sy = sy + lh
-        for _, syn in ipairs(allSynergies) do
-            love.graphics.setColor(0.4, 1.0, 0.7)
-            love.graphics.printf("+ " .. T(syn.nameKey), sx - 200, sy, 200, "right")
-            sy = sy + lh
-        end
-    end
-
-    -- 操作提示
-    love.graphics.setColor(0.5, 0.5, 0.5)
-    love.graphics.print(T("hud.hint"), 20, 695)
-
-    -- Phase 8：左下角技能栏
-    Game._drawSkillBar()
-
-    -- Phase 9：Boss 血条（屏幕顶部）
-    if _boss and not _boss._isDead then
-        _boss:drawHUD(1280, T(_boss._bossName))
-    end
-
-    -- Phase 9：右上角计时器 + 节奏阶段
-    Game._drawTimer()
-
-    -- 暂停遮罩
-    if _paused then
-        love.graphics.setColor(0, 0, 0, 0.5)
-        love.graphics.rectangle("fill", 0, 0, 1280, 720)
-        love.graphics.setColor(1, 0.85, 0.1)
-        Font.set(28)
-        love.graphics.printf(T("hud.paused"), 0, 320, 1280, "center")
-        Font.set(15)
-        love.graphics.setColor(0.6, 0.6, 0.6)
-        love.graphics.printf(T("hud.pause_hint"), 0, 368, 1280, "center")
-        Font.set(13)
-    end
-
-    -- 升级提示浮窗
-    if _levelUpNotice.active then
-        -- 计算淡出透明度（最后 0.8 秒开始淡出）
-        local alpha = 1.0
-        if _levelUpNotice.timer < 0.8 then
-            alpha = _levelUpNotice.timer / 0.8
-        end
-
-        -- 浮窗背景
-        love.graphics.setColor(0.1, 0.1, 0.1, 0.85 * alpha)
-        love.graphics.rectangle("fill", 490, 280, 300, 70, 8, 8)
-
-        -- 边框
-        love.graphics.setColor(1, 0.85, 0.1, alpha)
-        love.graphics.rectangle("line", 490, 280, 300, 70, 8, 8)
-
-        -- 标题
-        love.graphics.setColor(1, 0.85, 0.1, alpha)
-        love.graphics.printf(T("upgrade.title"), 490, 292, 300, "center")
-
-        -- 等级文字
-        love.graphics.setColor(1, 1, 1, alpha)
-        love.graphics.printf(
-            T("upgrade.reached", _levelUpNotice.level),
-            490, 316, 300, "center")
-    end
-
-    -- Phase 9：胜利画面覆盖
-    if _victory then
-        love.graphics.setColor(0, 0, 0, 0.7)
-        love.graphics.rectangle("fill", 0, 0, 1280, 720)
-        Font.set(40)
-        love.graphics.setColor(1.0, 0.9, 0.2)
-        love.graphics.printf(T("hud.victory") or "胜利！", 0, 280, 1280, "center")
-        Font.set(18)
-        love.graphics.setColor(0.8, 0.8, 0.8)
-        love.graphics.printf(T("hud.victory_hint") or "你击败了虚空领主！", 0, 340, 1280, "center")
-        Font.reset()
-    end
-
-    -- 调试日志面板（右上角）
-    Game._drawDebugPanel()
-end
-
--- Phase 8：绘制左下角技能栏（需求2：4个主动槽 + 被动列表）
-function Game._drawSkillBar()
-    if not _player then return end
-    local sm = _player:getSkillManager()
-
-    local bag = _player:getBag()
-    local psb = bag._playerSynergyBonus or {}
-    local skillPsb = {}
-    sm:recalcPassive(skillPsb)
-    SkillSynergy.recalculate(sm, skillPsb)
-    local cdReduce = (psb.cdReduce or 0) + (skillPsb.cdReduce or 0)
-
-    -- Bug#30：始终绘制技能槽框，无技能时显示空槽
-    local slots    = sm._slots
-    local passives = sm:getPassives()
-
-    Font.set(12)
-
-    -- 布局参数
-    local baseX = 20
-    local slotW = 58
-    local slotH = 54
-    local slotGap = 6
-    local startY = 640   -- 底部留出一点边距
-
-    -- ============ 绘制 4 个主动技能槽 ============
-    local slotOrder = { "skill1", "skill2", "skill3", "skill4" }
-    local slotKeys  = { skill1="空格", skill2="Q", skill3="E", skill4="F" }
-
-    local totalSlotsW = slotW * 4 + slotGap * 3
-    -- 背景
-    love.graphics.setColor(0, 0, 0, 0.55)
-    love.graphics.rectangle("fill", baseX - 4, startY - 4, totalSlotsW + 8, slotH + 8, 4, 4)
-
-    for i, slotKey in ipairs(slotOrder) do
-        local inst = slots[slotKey]
-        local x = baseX + (i - 1) * (slotW + slotGap)
-        local y = startY
-
-        -- 槽框
-        if inst then
-            local ratio = sm:getCooldownRatio(inst.id, cdReduce)
-            local ready = ratio >= 1.0
-            if ready then
-                love.graphics.setColor(0.2, 0.5, 0.2, 0.9)
-            else
-                love.graphics.setColor(0.14, 0.14, 0.22, 0.9)
-            end
-        else
-            love.graphics.setColor(0.1, 0.1, 0.13, 0.7)
-        end
-        love.graphics.rectangle("fill", x, y, slotW, slotH, 4, 4)
-
-        -- 槽边框
-        if inst then
-            love.graphics.setColor(0.5, 0.35, 0.9)
-        else
-            love.graphics.setColor(0.3, 0.3, 0.35)
-        end
-        love.graphics.rectangle("line", x, y, slotW, slotH, 4, 4)
-
-        -- 按键标签（左上）
-        love.graphics.setColor(0.6, 0.6, 0.6)
-        love.graphics.print("[" .. slotKeys[slotKey] .. "]", x + 3, y + 3)
-
-        if inst then
-            local cfg = inst.cfg
-            local ratio = sm:getCooldownRatio(inst.id, cdReduce)
-            local ready = ratio >= 1.0
-
-            -- 技能名（中部，截短显示）
-            if ready then
-                love.graphics.setColor(0.3, 1.0, 0.5)
-            else
-                love.graphics.setColor(0.85, 0.85, 0.85)
-            end
-            local name = T(cfg.nameKey)
-            love.graphics.printf(name, x + 2, y + 18, slotW - 4, "left")
-
-            -- CD 进度条（底部）
-            local barY = y + slotH - 10
-            love.graphics.setColor(0.2, 0.2, 0.2)
-            love.graphics.rectangle("fill", x + 3, barY, slotW - 6, 6, 2, 2)
-            if ready then
-                love.graphics.setColor(0.3, 1.0, 0.5)
-            else
-                love.graphics.setColor(0.5, 0.3, 0.8)
-            end
-            love.graphics.rectangle("fill", x + 3, barY, (slotW - 6) * ratio, 6, 2, 2)
-        else
-            -- 空槽提示
-            love.graphics.setColor(0.35, 0.35, 0.4)
-            love.graphics.printf("空", x, y + 20, slotW, "center")
-        end
-    end
-
-    -- ============ 绘制被动技能列表 ============
-    if #passives > 0 then
-        local passiveX = baseX
-        local passiveY = startY - (#passives * 16) - 12
-
-        -- 背景
-        love.graphics.setColor(0, 0, 0, 0.5)
-        love.graphics.rectangle("fill", passiveX - 4, passiveY - 4,
-            totalSlotsW + 8, #passives * 16 + 10, 4, 4)
-
-        love.graphics.setColor(0.5, 0.5, 0.6)
-        love.graphics.print(T("hud.passives") or "被动:", passiveX, passiveY - 2)
-
-        for i, inst in ipairs(passives) do
-            local cfg = inst.cfg
-            local y = passiveY + (i - 1) * 16 + 14
-
-            -- passive_onhit / passive_timed：显示 CD/充能圆点
-            if cfg.type == "passive_onhit" or cfg.type == "passive_timed" then
-                local ratio = sm:getCooldownRatio(inst.id, cdReduce)
-                if ratio >= 1 then
-                    love.graphics.setColor(0.3, 1.0, 0.5)
-                else
-                    love.graphics.setColor(0.5, 0.3, 0.8)
-                end
-                love.graphics.circle("fill", passiveX + 4, y + 5, 4)
-                -- Bug#22：在圆点后绘制微型充能进度条
-                local barW = totalSlotsW - 16
-                love.graphics.setColor(0.2, 0.2, 0.2)
-                love.graphics.rectangle("fill", passiveX + 12, y + 3, barW, 4, 2, 2)
-                if ratio >= 1 then
-                    love.graphics.setColor(0.3, 1.0, 0.5)
-                else
-                    love.graphics.setColor(0.5, 0.3, 0.8)
-                end
-                love.graphics.rectangle("fill", passiveX + 12, y + 3, barW * ratio, 4, 2, 2)
-                love.graphics.setColor(0.75, 0.75, 0.75)
-                love.graphics.print(T(cfg.nameKey) .. " Lv" .. inst.level, passiveX + 12, y + 7)
-            else
-                love.graphics.setColor(0.6, 0.6, 0.6)
-                love.graphics.print("• " .. T(cfg.nameKey) .. " Lv" .. inst.level, passiveX, y)
-            end
-        end
-    end
-
-    Font.reset()
-
-    -- Phase 10：技能槽右侧显示传承圆形图标
-    Game._drawLegacyIcon(baseX + totalSlotsW + 10, startY, slotH)
-end
-
--- Phase 9：绘制游戏计时器和节奏阶段（右上角，羁绊列表旁）
-function Game._drawTimer()
-    if not _rhythm then return end
-    local elapsed = _rhythm:getElapsed()
-    local minutes = math.floor(elapsed / 60)
-    local seconds = math.floor(elapsed % 60)
-    local timeStr = string.format("%02d:%02d", minutes, seconds)
-
-    Font.set(16)
-    love.graphics.setColor(0.9, 0.9, 0.9, 0.85)
-    love.graphics.printf(timeStr, 0, 20, 1260, "right")
-
-    -- 节奏阶段小提示
-    local phaseColors = {
-        calm    = {0.5, 0.8, 0.5},
-        rising  = {0.9, 0.8, 0.3},
-        peak    = {1.0, 0.4, 0.2},
-        rest    = {0.5, 0.7, 0.9},
-        surge   = {1.0, 0.2, 0.6},
-    }
-    local phase = _rhythm:getPhaseName()
-    local c = phaseColors[phase] or {0.7, 0.7, 0.7}
-    Font.set(12)
-    love.graphics.setColor(c[1], c[2], c[3], 0.75)
-    love.graphics.printf(phase, 0, 40, 1260, "right")
-    Font.reset()
-
-    love.graphics.setColor(1, 1, 1, 1)
-end
-
--- 绘制调试日志面板
-function Game._drawDebugPanel()
-    local x  = 900
-    local y  = 20
-    local lh = 16
-
-    local bag     = _player:getBag()
-    local weapons = bag:getAllWeapons()
-    local synergies = bag._activeSynergies or {}
-    -- 面板高度根据武器数量和激活羁绊数量动态调整
-    local panelH  = lh * (12 + math.max(1, #weapons) + math.max(1, #synergies)) + 8
-
-    love.graphics.setColor(0, 0, 0, 0.6)
-    love.graphics.rectangle("fill", x - 8, y - 4, 370, panelH)
-
-    love.graphics.setColor(0.4, 1, 0.4)
-    Font.set(13)
-    love.graphics.print(T("debug.title"), x, y)
-
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print(string.format(
-        "Pos:    (%.0f, %.0f)",
-        _player.x, _player.y), x, y + lh * 1)
-    love.graphics.print(string.format(
-        "HP:     %d / %d",
-        _player.hp, _player.maxHp), x, y + lh * 2)
-    love.graphics.print(string.format(
-        "Speed:  %.0f  | Lv: %d  Exp: %d/%d",
-        _player.speed, _player:getLevel(),
-        _player._exp, _player._expToNext), x, y + lh * 3)
-    love.graphics.print(string.format(
-        "Souls:  %d  | PickupR: %.0f",
-        _player:getSouls(), _player.pickupRadius), x, y + lh * 4)
-    love.graphics.print(string.format(
-        "Enemies: %d  | Projs: %d  | Pickups: %d",
-        #_enemies, #_projectiles, #_pickups), x, y + lh * 5)
-
-    -- 背包信息
-    love.graphics.print(string.format(
-        "Bag: %dx%d  | Weapons: %d",
-        bag.cols, bag.rows, #weapons), x, y + lh * 6)
-
-    -- 每把武器独立一行（显示有效属性，含相邻/羁绊加成）
-    if #weapons == 0 then
-        love.graphics.setColor(0.5, 0.5, 0.5)
-        love.graphics.print("  (no weapon - fallback)", x, y + lh * 7)
-    else
-        for i, w in ipairs(weapons) do
-            love.graphics.setColor(w.color[1], w.color[2], w.color[3])
-            love.graphics.print(string.format(
-                "  W%d: %-8s Lv%d  spd=%.1f(+%.1f) tmr=%.2f",
-                i, w.configId, w.level,
-                w.attackSpeed, w._adjBonus.attackSpeed + w._synergyBonus.attackSpeed,
-                w._attackTimer),
-                x, y + lh * (6 + i))
-        end
-    end
-
-    local weaponRows = math.max(1, #weapons)
-    local baseRow    = 7 + weaponRows
-
-    -- Phase 7.2：显示 Tag 计数行
-    local tagCounts  = bag._tagCounts or {}
-    local tagStr     = ""
-    local SynConfig  = require("config.synergies")
-    for _, entry in ipairs(SynConfig) do
-        local tag = entry.tag
-        local cnt = tagCounts[tag] or 0
-        if cnt > 0 then
-            tagStr = tagStr .. tag .. ":" .. cnt .. " "
-        end
-    end
-
-    love.graphics.setColor(1, 0.75, 0.3)
-    if tagStr == "" then
-        love.graphics.print("  Tag计数: (无)", x, y + lh * baseRow)
-    else
-        love.graphics.print("  Tag计数: " .. tagStr, x, y + lh * baseRow)
-    end
-    baseRow = baseRow + 1
-
-    -- 激活羁绊行
-    love.graphics.setColor(1, 0.85, 0.4)
-    if #synergies == 0 then
-        love.graphics.print("  激活羁绊: (无)", x, y + lh * baseRow)
-    else
-        love.graphics.print("  激活羁绊:", x, y + lh * baseRow)
-        for i, syn in ipairs(synergies) do
-            love.graphics.setColor(0.4, 1.0, 0.7)
-            love.graphics.print("    + " .. T(syn.nameKey), x, y + lh * (baseRow + i))
-        end
-    end
-    local synergyRows = math.max(1, #synergies + 1)
-    baseRow = baseRow + synergyRows
-
-    love.graphics.setColor(1, 1, 0.4)
-    love.graphics.print(string.format(
-        "FPS: %d", love.timer.getFPS()), x, y + lh * baseRow)
-
-    -- Phase 9：节奏控制器信息
-    love.graphics.setColor(1, 1, 1)
-    if _rhythm then
-        local params = _rhythm:getSpawnParams()
-        love.graphics.print(string.format(
-            "Rhythm: interval=%.2f  batch=%d  elite=%.0f%%  ranger=%.0f%%",
-            params.interval, params.batchSize,
-            params.eliteChance * 100, params.rangerChance * 100),
-            x, y + lh * (baseRow + 1))
-        love.graphics.print(string.format(
-            "Elapsed: %.1f s  | Phase: %s  | Boss: %s",
-            _rhythm:getElapsed(), _rhythm:getPhaseName(),
-            _boss and _boss._typeName or "none"),
-            x, y + lh * (baseRow + 2))
-    end
-
-    Font.reset()
 end
 
 -- 键盘按下事件（keypressed 是一次性事件，不会被跨状态按键残留触发）
@@ -1219,53 +942,6 @@ end
 -- Phase 10：绘制传承圆形图标（技能槽右侧）
 -- @param x: 图标左边缘 X
 -- @param y: 图标顶部 Y
--- @param h: 与技能槽同高
-function Game._drawLegacyIcon(x, y, h)
-    if not _player then return end
-
-    local radius = h / 2
-    local cx     = x + radius
-    local cy     = y + radius
-
-    local legacy = _player._legacyData
-
-    if legacy then
-        -- 有传承：金色圆形，显示传承图标
-        -- 外光圈
-        love.graphics.setColor(1.0, 0.85, 0.2, 0.2)
-        love.graphics.circle("fill", cx, cy, radius + 4)
-        -- 圆背景
-        love.graphics.setColor(0.18, 0.14, 0.04, 0.95)
-        love.graphics.circle("fill", cx, cy, radius)
-        -- 金色边框
-        love.graphics.setColor(1.0, 0.85, 0.2, 0.9)
-        love.graphics.setLineWidth(2)
-        love.graphics.circle("line", cx, cy, radius)
-        love.graphics.setLineWidth(1)
-        -- 「传」字
-        Font.set(16)
-        love.graphics.setColor(1.0, 0.85, 0.2)
-        love.graphics.printf("传", cx - radius, cy - 11, radius * 2, "center")
-        -- 悬停文字（固定显示传承名）
-        Font.set(11)
-        love.graphics.setColor(1.0, 0.95, 0.7, 0.9)
-        love.graphics.printf(T(legacy.nameKey), cx - 50, cy + radius + 4, 100, "center")
-    else
-        -- 无传承：灰色空圆
-        love.graphics.setColor(0.12, 0.12, 0.14, 0.85)
-        love.graphics.circle("fill", cx, cy, radius)
-        love.graphics.setColor(0.3, 0.3, 0.33, 0.7)
-        love.graphics.setLineWidth(1)
-        love.graphics.circle("line", cx, cy, radius)
-        Font.set(11)
-        love.graphics.setColor(0.4, 0.4, 0.4)
-        love.graphics.printf(T("hud.legacy_none"), cx - 40, cy + radius + 3, 80, "center")
-    end
-
-    Font.reset()
-    love.graphics.setColor(1, 1, 1, 1)
-end
-
 -- Phase 9：触发胜利（供控制台 win 指令使用）
 function Game._triggerVictory()
     _victory      = true

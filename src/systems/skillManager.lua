@@ -21,6 +21,7 @@ function SkillManager.new()
     self._globalSlowRate   = 0
     self._globalSlowTimer  = 0
     self._firedThisFrame   = {}   -- Bug#26：记录本帧触发的技能 id
+    self._replacedSkills   = {}   -- Bug#39：被顶替出槽位的技能 id 集合（不再出现在候选池）
     return self
 end
 
@@ -132,6 +133,9 @@ end
 function SkillManager:replaceSlot(slot, skillId)
     local cfg = SkillConfig[skillId]
     if not cfg then return end
+    -- Bug#39：记录被顶替的旧技能，防止其重新出现在候选列表
+    local old = self._slots[slot]
+    if old then self._replacedSkills[old.id] = true end
     self._slots[slot] = makeInst(skillId, cfg)
 end
 
@@ -266,65 +270,9 @@ function SkillManager:update(dt, player, ctx, cdReduce)
         end
     end
 
-    if player._battleCryTimer and player._battleCryTimer > 0 then
-        player._battleCryTimer = player._battleCryTimer - dt
-        if player._battleCryTimer <= 0 then
-            player._battleCryTimer = 0
-            if player._battleCryActive then
-                player.attack = player.attack / 2
-                player._battleCryActive = false
-            end
-        end
-    end
-
-    if player._rageTimer and player._rageTimer > 0 then
-        player._rageTimer = player._rageTimer - dt
-        if player._rageTimer <= 0 then
-            player._rageTimer = 0
-            if player._rageActive then
-                player.attack = player.attack - (player._rageBonus or 0)
-                player._rageActive = false
-                player._rageBonus  = 0
-            end
-        end
-    end
-
-    if player._overloadTimer and player._overloadTimer > 0 then
-        player._overloadTimer = player._overloadTimer - dt
-        if player._overloadTimer <= 0 then
-            player._overloadTimer = 0
-            local bag = player._overloadBag or player._bag
-            if bag then
-                for _, w in ipairs(bag:getAllWeapons()) do
-                    if w._overloadOrig then
-                        w.attackSpeed   = w._overloadOrig
-                        w._overloadOrig = nil
-                    end
-                end
-            end
-            player._overloadBag = nil
-        end
-    end
-
-    if player._shieldTimer and player._shieldTimer > 0 then
-        player._shieldTimer = player._shieldTimer - dt
-        if player._shieldTimer <= 0 then
-            player._shieldActive   = false
-            player._shieldTimer    = 0
-            player._shieldAbsorbed = false
-        end
-    end
-
-    if player._soulDrainTimer and player._soulDrainTimer > 0 then
-        player._soulDrainTimer = player._soulDrainTimer - dt
-        if player._soulDrainTimer <= 0 then
-            player._soulDrainTimer = 0
-            if player._soulDrainRange and player._soulDrainRange > 0 then
-                player.pickupRadius  = player.pickupRadius - player._soulDrainRange
-                player._soulDrainRange = 0
-            end
-        end
-    end
+    -- Phase 10.1：以下 buff 衰减逻辑已迁移至 BuffManager（player._buffManager:update()）
+    -- battle_cry / rage / overload / mana_shield / soul_drain_range
+    -- 由 player:update() 中统一调用 BuffManager:update(dt, self) 处理
 
     for _, e in ipairs(ctx and ctx.enemies or {}) do
         if e._slowTimer and e._slowTimer > 0 then
@@ -343,9 +291,10 @@ function SkillManager:update(dt, player, ctx, cdReduce)
     if self._globalSlowTimer > 0 then
         self._globalSlowTimer = self._globalSlowTimer - dt
         if self._globalSlowTimer <= 0 then
-            self._globalSlowTimer  = 0
-            self._globalSlowActive = false
-            self._globalSlowRate   = 0
+            self._globalSlowTimer    = 0
+            self._globalSlowActive   = false
+            self._globalSlowRate     = 0
+            self._globalSlowDuration = 0
         end
     end
 end
@@ -417,7 +366,12 @@ end
 function SkillManager:setGlobalSlow(rate, duration)
     self._globalSlowActive = true
     self._globalSlowRate   = rate
-    self._globalSlowTimer  = math.max(self._globalSlowTimer, duration)
+    local newTimer = math.max(self._globalSlowTimer, duration)
+    -- Bug#38：记录最大时长供 HUD 倒计时进度条使用
+    if newTimer > (self._globalSlowTimer or 0) then
+        self._globalSlowDuration = newTimer
+    end
+    self._globalSlowTimer  = newTimer
 end
 
 function SkillManager:getGlobalSlow()

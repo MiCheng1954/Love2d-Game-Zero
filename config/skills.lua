@@ -200,12 +200,11 @@ SkillConfig["battle_cry"] = {
     characterId = nil,
     effect = function(player, level, ctx)
         local duration = 10 + (level - 1) * 2
-        -- 添加临时 attack 倍率 buff（用 _battleCryTimer 跟踪）
-        if not player._battleCryActive then
-            player.attack = player.attack * 2
-            player._battleCryActive = true
+        -- Phase 10.1：通过 BuffManager 管理战吼状态（刷新策略：max(remaining, duration)）
+        local bm = player._buffManager
+        if bm then
+            bm:add("battle_cry", duration, {}, player)
         end
-        player._battleCryTimer = duration
         -- 附近敌人停滞 0.5s
         aoeSlowEnemies(player, ctx and ctx.enemies, 300, 1.0, 0.5)
     end,
@@ -224,9 +223,11 @@ SkillConfig["mana_shield"] = {
     characterId = nil,
     effect = function(player, level, ctx)
         local duration = 8 + (level - 1) * 2
-        player._shieldActive   = true
-        player._shieldTimer    = duration
-        player._shieldAbsorbed = false  -- 尚未吸收伤害
+        -- Phase 10.1：通过 BuffManager 管理魔法护盾状态
+        local bm = player._buffManager
+        if bm then
+            bm:add("mana_shield", duration, {}, player)
+        end
     end,
 }
 
@@ -277,8 +278,11 @@ SkillConfig["ammo_supply"] = {
     tag         = "精准",
     characterId = nil,
     effect = function(player, level, ctx)
-        -- 给玩家标记一次弹药强化（下次子弹伤害×2）
-        player._ammoSupplyStacks = (player._ammoSupplyStacks or 0) + (1 + (level-1))
+        -- Phase 10.1：通过 BuffManager stack 型 Buff 管理弹药强化层数
+        local bm = player._buffManager
+        if bm then
+            bm:addStack("ammo_supply", 1 + (level - 1), player)
+        end
     end,
 }
 
@@ -313,10 +317,19 @@ SkillConfig["soul_drain"] = {
         local heal      = 5  + (level - 1) * 3
         local rangeBon  = 50 + (level - 1) * 20
         player:heal(heal)
-        -- 临时扩大拾取范围 3s
-        player._soulDrainRange      = (player._soulDrainRange or 0) + rangeBon
-        player.pickupRadius         = player.pickupRadius + rangeBon
-        player._soulDrainTimer      = 3
+        -- Phase 10.1：通过 BuffManager 管理灵魂汲取范围加成
+        -- 刷新时不重复叠加范围：若已有 Buff，仅刷新时长（params=nil 让 add 走刷新分支）
+        local bm = player._buffManager
+        if bm then
+            if bm:has("soul_drain_range") then
+                -- 已激活：只刷新时长，不重复调用 onApply（不传 params 改为空表）
+                -- 注意：BuffManager.add 刷新分支不调用 onApply，所以不会叠加 rangeBonus
+                bm:add("soul_drain_range", 3, nil, player)
+            else
+                -- 首次激活：传入 rangeBonus 参数
+                bm:add("soul_drain_range", 3, { rangeBonus = rangeBon }, player)
+            end
+        end
     end,
 }
 
@@ -365,12 +378,11 @@ SkillConfig["rage"] = {
     effect = function(player, level, ctx)
         local atkBonus = 50 + (level - 1) * 15
         local duration = 5  + (level - 1) * 2
-        if not player._rageActive then
-            player.attack = player.attack + atkBonus
-            player._rageActive  = true
-            player._rageBonus   = atkBonus
+        -- Phase 10.1：通过 BuffManager 管理狂怒状态（刷新策略：max(remaining, duration)）
+        local bm = player._buffManager
+        if bm then
+            bm:add("rage", duration, { atkBonus = atkBonus }, player)
         end
-        player._rageTimer = duration
     end,
 }
 
@@ -474,18 +486,23 @@ SkillConfig["overload"] = {
     effect = function(player, level, ctx)
         local duration = 4 + (level - 1) * 1
         local bag = ctx and ctx.bag or (player._bag)
-        if bag then
-            local weapons = bag:getAllWeapons()
-            for _, w in ipairs(weapons) do
-                -- 临时将 attackSpeed 翻倍
-                if not w._overloadOrig then
-                    w._overloadOrig = w.attackSpeed
-                    w.attackSpeed   = w.attackSpeed * 2
+        local bm = player._buffManager
+        -- Phase 10.1：武器翻倍只在没有 overload Buff 时执行，避免刷新时重复×2
+        if bm and not bm:has("overload") then
+            if bag then
+                local weapons = bag:getAllWeapons()
+                for _, w in ipairs(weapons) do
+                    if not w._overloadOrig then
+                        w._overloadOrig = w.attackSpeed
+                        w.attackSpeed   = w.attackSpeed * 2
+                    end
                 end
             end
         end
-        player._overloadTimer = duration
-        player._overloadBag   = bag
+        if bm then
+            -- bag 传入 params，onRemove 时使用
+            bm:add("overload", duration, { bag = bag }, player)
+        end
     end,
 }
 

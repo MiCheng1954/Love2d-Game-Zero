@@ -7,10 +7,12 @@
     玩家选择后调用 onSelect 回调。
 
     enter(data) 参数：
-        data.player    — 玩家实例
-        data.candidates — 候选技能 id 列表（外部传入，已筛选好的 3 个）
-        data.onSelect   — function(skillId) 选择回调
-        data.onCancel   — function() 取消回调（可选）
+        data.player      — 玩家实例
+        data.candidates  — 候选技能 id 列表（外部传入，已筛选好的 3 个）
+        data.onSelect    — function(skillId) 选择回调
+        data.onCancel    — function() 取消回调（可选）
+        data.onRefresh   — function() → candidates 刷新回调（可选），返回新候选列表
+        data.refreshCost — number 刷新灵魂消耗（可选，默认 5）
 ]]
 
 local Input        = require("src.systems.input")
@@ -19,13 +21,22 @@ local SkillConfig  = require("config.skills")
 
 local SkillSelectUI = {}
 
+-- 刷新消耗提示显示时长（秒）
+local NOTICE_DURATION = 1.5
+
 -- 进入技能选择界面
 function SkillSelectUI:enter(data)
-    self._player     = data.player
-    self._candidates = data.candidates or {}
-    self._onSelect   = data.onSelect
-    self._onCancel   = data.onCancel
-    self._index      = 1
+    self._player      = data.player
+    self._candidates  = data.candidates or {}
+    self._onSelect    = data.onSelect
+    self._onCancel    = data.onCancel
+    self._onRefresh   = data.onRefresh      -- function() → new candidates or nil
+    self._refreshCost = data.refreshCost or 5
+    self._index       = 1
+
+    -- 灵魂不足提示
+    self._noticeTimer = 0
+    self._noticeText  = ""
 
     -- 清除残留输入
     Input.update()
@@ -33,15 +44,21 @@ end
 
 -- 退出
 function SkillSelectUI:exit()
-    self._player     = nil
-    self._candidates = {}
-    self._onSelect   = nil
-    self._onCancel   = nil
+    self._player      = nil
+    self._candidates  = {}
+    self._onSelect    = nil
+    self._onCancel    = nil
+    self._onRefresh   = nil
 end
 
 -- 每帧更新
 function SkillSelectUI:update(dt)
     Input.update()
+
+    -- 提示倒计时
+    if self._noticeTimer > 0 then
+        self._noticeTimer = self._noticeTimer - dt
+    end
 
     if Input.isPressed("moveUp") then
         self._index = math.max(1, self._index - 1)
@@ -66,6 +83,38 @@ function SkillSelectUI:update(dt)
     end
 end
 
+function SkillSelectUI:keypressed(key)
+    if key == "r" or key == "R" then
+        self:_tryRefresh()
+    end
+end
+
+-- 尝试花费灵魂刷新候选列表
+-- Bug#53：只刷新光标选中的那一个选项，其余保持不变
+-- onRefresh(currentId) → 返回一个新的技能 id（排除已在列表中的）
+function SkillSelectUI:_tryRefresh()
+    if not self._onRefresh then return end
+
+    local player = self._player
+    if not player then return end
+
+    local cost = self._refreshCost
+    if player:getSouls() < cost then
+        self._noticeText  = string.format(T("skill_select.no_souls"), cost)
+        self._noticeTimer = NOTICE_DURATION
+        return
+    end
+
+    -- 花费灵魂，获取替换当前选中的一个新候选
+    player:spendSouls(cost)
+    local currentId = self._candidates[self._index]
+    local newId = self._onRefresh(currentId, self._candidates)
+    if newId then
+        self._candidates[self._index] = newId
+        -- 光标保持不动
+    end
+end
+
 -- 绘制界面
 function SkillSelectUI:draw()
     Font.set(16)
@@ -78,14 +127,28 @@ function SkillSelectUI:draw()
     love.graphics.setColor(0.7, 0.3, 1.0)
     love.graphics.printf(T("skill_select.title"), 0, 80, 1280, "center")
 
-    love.graphics.setColor(0.7, 0.7, 0.7)
-    love.graphics.printf(T("skill_select.hint"), 0, 116, 1280, "center")
+    -- 操作提示行
+    Font.set(13)
+    if self._onRefresh then
+        -- 显示灵魂余量和刷新费用
+        local souls   = self._player and self._player:getSouls() or 0
+        local hintStr = string.format(T("skill_select.hint_refresh"), self._refreshCost)
+        love.graphics.setColor(0.7, 0.7, 0.7)
+        love.graphics.printf(hintStr, 0, 116, 1280, "center")
+        -- 灵魂余量（右侧小字）
+        love.graphics.setColor(0.9, 0.8, 0.2)
+        love.graphics.printf("灵魂：" .. souls, 0, 135, 1260, "right")
+    else
+        love.graphics.setColor(0.7, 0.7, 0.7)
+        love.graphics.printf(T("skill_select.hint"), 0, 116, 1280, "center")
+    end
+    Font.set(16)
 
     -- 技能卡片
     local cardW = 600
     local cardH = 90
     local cardX = (1280 - cardW) / 2
-    local baseY = 180
+    local baseY = 168
     local gap   = 16
 
     local sm = self._player and self._player._skillManager
@@ -150,11 +213,16 @@ function SkillSelectUI:draw()
         love.graphics.printf(T("skill_select.empty"), 0, 360, 1280, "center")
     end
 
-    Font.reset()
-end
+    -- 灵魂不足提示（居中淡出）
+    if self._noticeTimer > 0 then
+        local alpha = math.min(1.0, self._noticeTimer / 0.4)
+        Font.set(15)
+        love.graphics.setColor(1.0, 0.35, 0.35, alpha)
+        love.graphics.printf(self._noticeText, 0, 530, 1280, "center")
+        Font.set(16)
+    end
 
--- keypressed（备用，Input 系统统一处理）
-function SkillSelectUI:keypressed(key)
+    Font.reset()
 end
 
 return SkillSelectUI

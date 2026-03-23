@@ -85,6 +85,37 @@ function Log.snapshotForBug(bugId)
     return snapName
 end
 
+-- 将截图 ImageData 保存到 data/logs/screenshot_<timestamp>.png
+-- 在 F12 截图回调中调用
+-- @param imageData: love.graphics.captureScreenshot 回调传入的 ImageData 对象
+-- @return 绝对路径字符串（成功），或 nil（失败）
+function Log.saveScreenshot(imageData)
+    if not _dataDir or not imageData then return nil end
+
+    local filename = string.format("screenshot_%s.png", os.date("%Y%m%d_%H%M%S"))
+    local fullPath = _dataDir .. "/logs/" .. filename
+
+    -- ImageData:encode 返回 FileData，再用 io.open 写到项目目录
+    local ok, fileData = pcall(function()
+        return imageData:encode("png")
+    end)
+    if not ok or not fileData then
+        Log.warn("截图保存失败：encode 出错")
+        return nil
+    end
+
+    local f = io.open(fullPath, "wb")
+    if not f then
+        Log.warn("截图保存失败：无法写入 " .. fullPath)
+        return nil
+    end
+    f:write(fileData:getString())
+    f:close()
+
+    Log.info("截图已保存：" .. fullPath)
+    return fullPath
+end
+
 -- 关闭日志（游戏退出时调用）
 function Log.close()
     if _file then

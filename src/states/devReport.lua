@@ -110,6 +110,8 @@ function DevReport:enter(data)
     self._player  = data and data.player  or nil
     self._spawner = data and data.spawner or nil
     self._enemies = data and data.enemies or nil
+    -- 截图路径（由 main.lua F12 回调传入，已在本帧开始前保存完毕）
+    self._screenshotPath = data and data.screenshotPath or nil
 
     self._phase       = PHASE_DESC
     self._descInput   = ""
@@ -127,9 +129,10 @@ end
 
 function DevReport:exit()
     love.keyboard.setTextInput(false)
-    self._player  = nil
-    self._spawner = nil
-    self._enemies = nil
+    self._player         = nil
+    self._spawner        = nil
+    self._enemies        = nil
+    self._screenshotPath = nil
 end
 
 -- ============================================================
@@ -223,6 +226,10 @@ function DevReport:_save(recordType)
             log.level, log.hp, log.elapsed, log.enemies)
         if snapName then
             logStr = logStr .. string.format(',"logSnapshot":"%s"', escStr(snapName))
+        end
+        -- 截图路径（若有）
+        if self._screenshotPath then
+            logStr = logStr .. string.format(',"screenshot":"%s"', escStr(self._screenshotPath))
         end
 
         local entry = string.format(
@@ -334,15 +341,28 @@ function DevReport:draw()
         love.graphics.setColor(0.85, 0.85, 0.85)
         love.graphics.print("描述 Bug 或需求：", PANEL_X + 20, PANEL_Y + 72)
 
+        -- 截图状态提示
+        Font.set(11)
+        if self._screenshotPath then
+            love.graphics.setColor(0.3, 0.9, 0.4)
+            -- 只显示文件名，不显示完整路径（太长）
+            local fname = self._screenshotPath:match("[^\\/]+$") or self._screenshotPath
+            love.graphics.print("📷 截图已就绪：" .. fname, PANEL_X + 20, PANEL_Y + 92)
+        else
+            love.graphics.setColor(0.5, 0.5, 0.5)
+            love.graphics.print("（无截图）", PANEL_X + 20, PANEL_Y + 92)
+        end
+        Font.set(15)
+
         -- 输入框背景
         love.graphics.setColor(0.05, 0.05, 0.08)
-        love.graphics.rectangle("fill", PANEL_X + 20, PANEL_Y + 100, PANEL_W - 40, 60, 4, 4)
+        love.graphics.rectangle("fill", PANEL_X + 20, PANEL_Y + 112, PANEL_W - 40, 60, 4, 4)
         love.graphics.setColor(0.35, 0.35, 0.55)
-        love.graphics.rectangle("line", PANEL_X + 20, PANEL_Y + 100, PANEL_W - 40, 60, 4, 4)
+        love.graphics.rectangle("line", PANEL_X + 20, PANEL_Y + 112, PANEL_W - 40, 60, 4, 4)
 
         local cursor = self._cursorVisible and "|" or " "
         love.graphics.setColor(1, 1, 1)
-        love.graphics.printf(self._descInput .. cursor, PANEL_X + 28, PANEL_Y + 116, PANEL_W - 56, "left")
+        love.graphics.printf(self._descInput .. cursor, PANEL_X + 28, PANEL_Y + 128, PANEL_W - 56, "left")
 
         love.graphics.setColor(0.45, 0.45, 0.45)
         love.graphics.printf("Enter 下一步  |  ESC 取消", PANEL_X, PANEL_Y + PANEL_H - 36, PANEL_W, "center")

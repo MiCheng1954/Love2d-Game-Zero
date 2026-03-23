@@ -78,6 +78,9 @@ function Boss.new(x, y, cfg)
     self._stompFlash = 0
     self._punchFlash = 0
 
+    -- Phase 12：冲锋者蓄力计时（>0 表示蓄力中，倒计时结束后执行冲刺）
+    self._windupTimer = 0
+
     -- AI 状态
     self._target          = nil
     self._projectileList  = nil  -- 由 game.lua 注入共享投射物列表
@@ -110,8 +113,19 @@ function Boss:update(dt)
     if self._stompFlash > 0 then self._stompFlash = self._stompFlash - dt end
     if self._punchFlash > 0 then self._punchFlash = self._punchFlash - dt end
 
-    -- 移动：冲刺状态 > 普通追踪
-    if self._chargeTimer > 0 then
+    -- 移动：冲刺状态 > 蓄力等待 > 普通追踪
+    if self._windupTimer and self._windupTimer > 0 then
+        -- 蓄力阶段：停滞，倒计时结束后进入冲刺
+        self._windupTimer = self._windupTimer - dt
+        if self._windupTimer <= 0 then
+            self._windupTimer = 0
+            -- 蓄力结束，开始冲刺 0.5s
+            self._chargeTimer = 0.5
+            self._chargeSpeed = 800
+        end
+        -- 蓄力期闪烁（视觉反馈）
+        self._stompFlash = 0.1
+    elseif self._chargeTimer > 0 then
         self._chargeTimer = self._chargeTimer - dt
         self.x = self.x + self._chargeDx * self._chargeSpeed * dt
         self.y = self.y + self._chargeDy * self._chargeSpeed * dt
@@ -164,6 +178,14 @@ function Boss:draw()
 
     -- 震地/重拳闪光效果
     local flash = math.max(self._stompFlash, self._punchFlash)
+
+    -- Phase 12：冲锋者蓄力时显示橙色警告光圈
+    if self._windupTimer and self._windupTimer > 0 then
+        local pulse = math.abs(math.sin(self._windupTimer * 20))
+        love.graphics.setColor(1.0, 0.4, 0.0, 0.55 * pulse)
+        love.graphics.circle("fill", self.x, self.y, self._radius + 22)
+    end
+
     if flash > 0 then
         love.graphics.setColor(1, 1, 1, flash * 2)
         love.graphics.circle("fill", self.x, self.y, self._radius + 8)

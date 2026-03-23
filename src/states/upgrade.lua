@@ -100,7 +100,8 @@ function Upgrade:_updateOptionPhase()
     end
 
     -- 灵魂刷新子选项（按左键）
-    if Input.isPressed("moveLeft") then
+    -- Bug#51：技能大类不在 option 层刷新（技能刷新在 skillSelectUI 内进行）
+    if Input.isPressed("moveLeft") and self._selCatId ~= "skill" then
         if self._player:spendSouls(self._refreshCost) then
             -- 消耗灵魂成功，重新随机排列子选项
             self:_shuffleOptions()
@@ -125,18 +126,21 @@ function Upgrade:_updateOptionPhase()
 end
 
 -- 打乱当前子选项顺序（灵魂刷新时调用）
+-- Bug#48：刷新同样应用 canShow 过滤，与进入时行为一致
 function Upgrade:_shuffleOptions()
-    local opts = UpgradeConfig[self._selCatId] or {}
-    -- 浅拷贝后随机排列
-    local copy = {}
-    for _, v in ipairs(opts) do
-        table.insert(copy, v)
+    local all = UpgradeConfig[self._selCatId] or {}
+    -- 先过滤，再随机排列
+    local filtered = {}
+    for _, v in ipairs(all) do
+        if not v.canShow or v.canShow(self._player) then
+            table.insert(filtered, v)
+        end
     end
-    for i = #copy, 2, -1 do
+    for i = #filtered, 2, -1 do
         local j = math.random(i)
-        copy[i], copy[j] = copy[j], copy[i]
+        filtered[i], filtered[j] = filtered[j], filtered[i]
     end
-    self._currentOptions = copy
+    self._currentOptions = filtered
     self._optIndex       = 1
 end
 
@@ -273,11 +277,13 @@ function Upgrade:_drawOptionPhase()
         end
     end
 
-    -- 灵魂刷新提示
-    love.graphics.setColor(0.4, 0.7, 1.0)
-    love.graphics.printf(
-        T("upgrade.refresh", self._refreshCost, self._player:getSouls()),
-        0, 620, 1280, "center")
+    -- 灵魂刷新提示（技能大类不显示，刷新在 skillSelectUI 里）
+    if self._selCatId ~= "skill" then
+        love.graphics.setColor(0.4, 0.7, 1.0)
+        love.graphics.printf(
+            T("upgrade.refresh", self._refreshCost, self._player:getSouls()),
+            0, 620, 1280, "center")
+    end
 
     -- 操作提示
     love.graphics.setColor(0.5, 0.5, 0.5)

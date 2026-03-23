@@ -1,73 +1,793 @@
 [
-  {"id":1,"desc":"我将炮和霰弹枪进行融合，按下回车之后没有响应","time":"2026-03-21 00:31:01","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":5,"hp":120,"elapsed":50.5,"enemies":16,"logSnapshot":"logs/bug_1_20260321_003101.log"}}
-,
-  {"id":2,"desc":"在升级获取武器时，不应该刷新出来已经融合后的武器","time":"2026-03-21 00:33:24","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":164,"elapsed":102.6,"enemies":81,"logSnapshot":"logs/bug_2_20260321_003324.log"}}
-,
-  {"id":3,"desc":"融合时，如果因为背包空间不足导致的融合失败，应该要有提示，而不是直接关闭弹窗","time":"2026-03-21 00:34:44","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":164,"elapsed":110.6,"enemies":59,"logSnapshot":"logs/bug_3_20260321_003444.log"}}
-,
-  {"id":4,"desc":"武器融合预览时，要提示融合后的武器尺寸","time":"2026-03-21 00:35:08","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":164,"elapsed":110.6,"enemies":59,"logSnapshot":"logs/bug_4_20260321_003508.log"}}
-,
-  {"id":5,"desc":"我在获取武器的界面将武器融合之后，会导致无法退出","time":"2026-03-21 00:44:37","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":170,"elapsed":105.8,"enemies":74,"logSnapshot":"logs/bug_5_20260321_004437.log"}}
-,
-  {"id":6,"desc":"羁绊加成的布局和当前羁绊效果的布局重叠了","time":"2026-03-21 00:58:49","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":4,"hp":130,"elapsed":49.9,"enemies":11,"logSnapshot":"logs/bug_6_20260321_005849.log"}}
-,
-  {"id":7,"desc":"当前加成四个字前面有一个乱码符号，其他地方也存在这种情况，检查一下","time":"2026-03-21 00:59:44","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":4,"hp":130,"elapsed":49.9,"enemies":11,"logSnapshot":"logs/bug_7_20260321_005944.log"}}
-,
-  {"id":8,"desc":"羁绊加成与武器羁绊的布局重叠了，修正一下","time":"2026-03-21 01:00:14","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":4,"hp":130,"elapsed":49.9,"enemies":11,"logSnapshot":"logs/bug_8_20260321_010014.log"}}
-,
-  {"id":9,"desc":"融合武器的被动效果也要展示在融合的预览界面上","time":"2026-03-21 01:03:35","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":9,"hp":180,"elapsed":90.0,"enemies":15,"logSnapshot":"logs/bug_9_20260321_010335.log"}}
-,
-  {"id":10,"desc":"背包面板需要可以按tab键退出","time":"2026-03-21 01:11:57","priority":2,"status":"fixed","fixedTime":"2026-03-21","log":{"level":3,"hp":120,"elapsed":17.3,"enemies":2,"logSnapshot":"logs/bug_10_20260321_011157.log"}}
-,
-  {"id":11,"desc":"需求list模块没有实现，按f11没有反应","time":"2026-03-21 01:12:17","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":3,"hp":120,"elapsed":19.2,"enemies":2,"logSnapshot":"logs/bug_11_20260321_011217.log"}}
-,
-  {"id":12,"desc":"武器详情的武器羁绊描述里面，要显示这把武器属于哪个羁绊，以及这个羁绊需要哪些武器，已拥有的武器高亮，没有的武器显示灰色","time":"2026-03-21 01:15:31","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":170,"elapsed":62.2,"enemies":5,"logSnapshot":"logs/bug_12_20260321_011531.log"}}
-,
-  {"id":13,"desc":"武器融合界面的标题上左右各有一个乱码","time":"2026-03-21 01:19:02","priority":2,"status":"fixed","fixedTime":"2026-03-21","log":{"level":13,"hp":220,"elapsed":134.4,"enemies":1,"logSnapshot":"logs/bug_13_20260321_011902.log"}}
-,
-  {"id":14,"desc":"武器详情页，不要常驻显示所有武器羁绊，只显示和这个武器关联的羁绊","time":"2026-03-21 01:53:29","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":1,"hp":100,"elapsed":5.1,"enemies":2,"logSnapshot":"logs/bug_14_20260321_015329.log"}}
-,
-  {"id":15,"desc":"武器羁绊要显示他的效果是什么","time":"2026-03-21 01:56:22","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":7,"hp":160,"elapsed":55.1,"enemies":11,"logSnapshot":"logs/bug_15_20260321_015622.log"}}
-,
-  {"id":16,"desc":"武器融合界面，要显示新武器的标签","time":"2026-03-21 01:57:51","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":11,"hp":200,"elapsed":88.9,"enemies":14,"logSnapshot":"logs/bug_16_20260321_015751.log"}}
-,
-  {"id":17,"desc":"武器详情的武器标签，显示的是当前武器自己都有哪些标签，而不是标签总数，也不需要数量显示","time":"2026-03-21 01:59:05","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":11,"hp":200,"elapsed":88.9,"enemies":14,"logSnapshot":"logs/bug_17_20260321_015905.log"}}
-,
-  {"id":18,"desc":"背包界面的武器羁绊，合并到武器详情里面去，不要单独显示在背包界面上，且只显示和这个武器相关的羁绊","time":"2026-03-21 02:13:50","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":1,"hp":100,"elapsed":3.4,"enemies":2,"logSnapshot":"logs/bug_18_20260321_021350.log"}}
-,
-  {"id":19,"desc":"融合界面双持手枪显示的尺寸是2*2，但实际是1*2","time":"2026-03-21 02:22:39","priority":2,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":170,"elapsed":69.6,"enemies":5,"logSnapshot":"logs/bug_19_20260321_022239.log"}}
-,
-  {"id":20,"desc":"全屏减速技能对新生成的敌人无效，这个需要改一下","time":"2026-03-21 13:47:25","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":9,"hp":122,"elapsed":107.0,"enemies":108,"logSnapshot":"logs/bug_20_20260321_134725.log"}}
-,
-  {"id":21,"desc":"目前技能的技能槽和实际的按键对应不上，在获取技能的时候，技能按键为Q的和技能按键为E的会产生冲突，要给技能槽这个属性加到技能的类型里面去","time":"2026-03-21 14:41:18","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":9,"hp":180,"elapsed":102.7,"enemies":81,"logSnapshot":"logs/bug_21_20260321_144118.log"}}
-,
-  {"id":22,"desc":"间隔时间自动触发的技能没有充能UI，这个要补充上","time":"2026-03-21 14:42:40","priority":2,"status":"fixed","fixedTime":"2026-03-21","log":{"level":4,"hp":130,"elapsed":9.3,"enemies":3,"logSnapshot":"logs/bug_22_20260321_144240.log"}}
-,
-  {"id":23,"desc":"投掷炸弹的技能描述是E技能，但实际上是q技能，这个要处理一下","time":"2026-03-21 14:43:51","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":5,"hp":140,"elapsed":25.3,"enemies":3,"logSnapshot":"logs/bug_23_20260321_144351.log"}}
-,
-  {"id":24,"desc":"目前技能槽由比较大的缺陷，技能是按照获取顺序一次填充的，而不是按照技能设定的技能槽去填充顶替的，这会导致错误","time":"2026-03-21 14:45:12","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":6,"hp":150,"elapsed":35.5,"enemies":3,"logSnapshot":"logs/bug_24_20260321_144512.log"}}
-,
-  {"id":25,"desc":"背包界面需要一个技能面板，显示当前拥有的技能列表，在选择中技能的时候，和武器一样，需要有技能详情的描述","time":"2026-03-21 14:47:25","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":8,"hp":170,"elapsed":64.8,"enemies":31,"logSnapshot":"logs/bug_25_20260321_144725.log"}}
-,
-  {"id":26,"desc":"被动技能触发的爆炸等效果，也要有技能表现","time":"2026-03-21 14:48:27","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":9,"hp":174,"elapsed":100.6,"enemies":84,"logSnapshot":"logs/bug_26_20260321_144827.log"}}
-,
-  {"id":27,"desc":"在武器详情页面里，武器拥有的标签应该单独显示在武器名字后面","time":"2026-03-21 14:53:02","priority":2,"status":"fixed","fixedTime":"2026-03-21","log":{"level":16,"hp":221,"elapsed":235.0,"enemies":98,"logSnapshot":"logs/bug_27_20260321_145302.log"}}
-,
-  {"id":28,"desc":"被技能打死的敌人似乎没有正常掉落灵魂经验","time":"2026-03-21 14:54:00","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":16,"hp":281,"elapsed":261.6,"enemies":20,"logSnapshot":"logs/bug_28_20260321_145400.log"}}
-,
-  {"id":29,"desc":"投掷炸弹等指向性技能，要用角色最后一次的移动方向作为瞄准方向","time":"2026-03-21 14:57:57","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":23,"hp":370,"elapsed":361.5,"enemies":5,"logSnapshot":"logs/bug_29_20260321_145757.log"}}
-,
-  {"id":30,"desc":"第一次进入游戏的时候，还没有获得技能时，左下角的技能栏没有显示出来","time":"2026-03-21 16:22:38","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":1,"hp":100,"elapsed":7.0,"enemies":2,"logSnapshot":"logs/bug_30_20260321_162238.log"}}
-,
-  {"id":31,"desc":"背包页面还是没有技能详情","time":"2026-03-21 16:25:55","priority":3,"status":"fixed","fixedTime":"2026-03-21","log":{"level":4,"hp":130,"elapsed":34.7,"enemies":3,"logSnapshot":"logs/bug_31_20260321_162555.log"}}
-,
-  {"id":32,"desc":"触发形的技能在触发的时候也需要特效","time":"2026-03-22 00:50:33","priority":3,"status":"fixed","fixedTime":"2026-03-22","log":{"level":12,"hp":210,"elapsed":93.4,"enemies":72,"logSnapshot":"logs/bug_32_20260322_005033.log"}}
-,
-  {"id":33,"desc":"似乎有些武器无法对boss生效，看下什么原因","time":"2026-03-22 00:54:57","priority":3,"status":"fixed","fixedTime":"2026-03-22","log":{"level":23,"hp":375,"elapsed":258.6,"enemies":5,"logSnapshot":"logs/bug_33_20260322_005457.log"}}
-,
-  {"id":34,"desc":"传承选择界面无法通过wasd移动光标","time":"2026-03-22 13:10:16","priority":3,"status":"fixed","fixedTime":"2026-03-22","log":{"level":5,"hp":0,"elapsed":43.7,"enemies":14,"logSnapshot":"logs/bug_34_20260322_131016.log"}}
-,
-  {"id":35,"desc":"传承技能没有正确的消耗掉，每一局结束的时候需要将传承技能清理掉","time":"2026-03-22 13:12:39","priority":3,"status":"fixed","fixedTime":"2026-03-22","log":{"level":1,"hp":100,"elapsed":5.9,"enemies":2,"logSnapshot":"logs/bug_35_20260322_131239.log"}}
-,
-  {"id":36,"desc":"传承技能没有显示到背包界面的技能面板里面","time":"2026-03-22 14:32:05","priority":3,"status":"fixed","fixedTime":"2026-03-22","log":{"level":1,"hp":100,"elapsed":5.2,"enemies":2,"logSnapshot":"logs/bug_36_20260322_143205.log"}}
+  {
+    "id": 1,
+    "desc": "我将炮和霰弹枪进行融合，按下回车之后没有响应",
+    "time": "2026-03-21 00:31:01",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 5,
+      "hp": 120,
+      "elapsed": 50.5,
+      "enemies": 16,
+      "logSnapshot": "logs/bug_1_20260321_003101.log"
+    }
+  },
+  {
+    "id": 2,
+    "desc": "在升级获取武器时，不应该刷新出来已经融合后的武器",
+    "time": "2026-03-21 00:33:24",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 8,
+      "hp": 164,
+      "elapsed": 102.6,
+      "enemies": 81,
+      "logSnapshot": "logs/bug_2_20260321_003324.log"
+    }
+  },
+  {
+    "id": 3,
+    "desc": "融合时，如果因为背包空间不足导致的融合失败，应该要有提示，而不是直接关闭弹窗",
+    "time": "2026-03-21 00:34:44",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 8,
+      "hp": 164,
+      "elapsed": 110.6,
+      "enemies": 59,
+      "logSnapshot": "logs/bug_3_20260321_003444.log"
+    }
+  },
+  {
+    "id": 4,
+    "desc": "武器融合预览时，要提示融合后的武器尺寸",
+    "time": "2026-03-21 00:35:08",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 8,
+      "hp": 164,
+      "elapsed": 110.6,
+      "enemies": 59,
+      "logSnapshot": "logs/bug_4_20260321_003508.log"
+    }
+  },
+  {
+    "id": 5,
+    "desc": "我在获取武器的界面将武器融合之后，会导致无法退出",
+    "time": "2026-03-21 00:44:37",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 8,
+      "hp": 170,
+      "elapsed": 105.8,
+      "enemies": 74,
+      "logSnapshot": "logs/bug_5_20260321_004437.log"
+    }
+  },
+  {
+    "id": 6,
+    "desc": "羁绊加成的布局和当前羁绊效果的布局重叠了",
+    "time": "2026-03-21 00:58:49",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 4,
+      "hp": 130,
+      "elapsed": 49.9,
+      "enemies": 11,
+      "logSnapshot": "logs/bug_6_20260321_005849.log"
+    }
+  },
+  {
+    "id": 7,
+    "desc": "当前加成四个字前面有一个乱码符号，其他地方也存在这种情况，检查一下",
+    "time": "2026-03-21 00:59:44",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 4,
+      "hp": 130,
+      "elapsed": 49.9,
+      "enemies": 11,
+      "logSnapshot": "logs/bug_7_20260321_005944.log"
+    }
+  },
+  {
+    "id": 8,
+    "desc": "羁绊加成与武器羁绊的布局重叠了，修正一下",
+    "time": "2026-03-21 01:00:14",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 4,
+      "hp": 130,
+      "elapsed": 49.9,
+      "enemies": 11,
+      "logSnapshot": "logs/bug_8_20260321_010014.log"
+    }
+  },
+  {
+    "id": 9,
+    "desc": "融合武器的被动效果也要展示在融合的预览界面上",
+    "time": "2026-03-21 01:03:35",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 9,
+      "hp": 180,
+      "elapsed": 90.0,
+      "enemies": 15,
+      "logSnapshot": "logs/bug_9_20260321_010335.log"
+    }
+  },
+  {
+    "id": 10,
+    "desc": "背包面板需要可以按tab键退出",
+    "time": "2026-03-21 01:11:57",
+    "priority": 2,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 3,
+      "hp": 120,
+      "elapsed": 17.3,
+      "enemies": 2,
+      "logSnapshot": "logs/bug_10_20260321_011157.log"
+    }
+  },
+  {
+    "id": 11,
+    "desc": "需求list模块没有实现，按f11没有反应",
+    "time": "2026-03-21 01:12:17",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 3,
+      "hp": 120,
+      "elapsed": 19.2,
+      "enemies": 2,
+      "logSnapshot": "logs/bug_11_20260321_011217.log"
+    }
+  },
+  {
+    "id": 12,
+    "desc": "武器详情的武器羁绊描述里面，要显示这把武器属于哪个羁绊，以及这个羁绊需要哪些武器，已拥有的武器高亮，没有的武器显示灰色",
+    "time": "2026-03-21 01:15:31",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 8,
+      "hp": 170,
+      "elapsed": 62.2,
+      "enemies": 5,
+      "logSnapshot": "logs/bug_12_20260321_011531.log"
+    }
+  },
+  {
+    "id": 13,
+    "desc": "武器融合界面的标题上左右各有一个乱码",
+    "time": "2026-03-21 01:19:02",
+    "priority": 2,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 13,
+      "hp": 220,
+      "elapsed": 134.4,
+      "enemies": 1,
+      "logSnapshot": "logs/bug_13_20260321_011902.log"
+    }
+  },
+  {
+    "id": 14,
+    "desc": "武器详情页，不要常驻显示所有武器羁绊，只显示和这个武器关联的羁绊",
+    "time": "2026-03-21 01:53:29",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 1,
+      "hp": 100,
+      "elapsed": 5.1,
+      "enemies": 2,
+      "logSnapshot": "logs/bug_14_20260321_015329.log"
+    }
+  },
+  {
+    "id": 15,
+    "desc": "武器羁绊要显示他的效果是什么",
+    "time": "2026-03-21 01:56:22",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 7,
+      "hp": 160,
+      "elapsed": 55.1,
+      "enemies": 11,
+      "logSnapshot": "logs/bug_15_20260321_015622.log"
+    }
+  },
+  {
+    "id": 16,
+    "desc": "武器融合界面，要显示新武器的标签",
+    "time": "2026-03-21 01:57:51",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 11,
+      "hp": 200,
+      "elapsed": 88.9,
+      "enemies": 14,
+      "logSnapshot": "logs/bug_16_20260321_015751.log"
+    }
+  },
+  {
+    "id": 17,
+    "desc": "武器详情的武器标签，显示的是当前武器自己都有哪些标签，而不是标签总数，也不需要数量显示",
+    "time": "2026-03-21 01:59:05",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 11,
+      "hp": 200,
+      "elapsed": 88.9,
+      "enemies": 14,
+      "logSnapshot": "logs/bug_17_20260321_015905.log"
+    }
+  },
+  {
+    "id": 18,
+    "desc": "背包界面的武器羁绊，合并到武器详情里面去，不要单独显示在背包界面上，且只显示和这个武器相关的羁绊",
+    "time": "2026-03-21 02:13:50",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 1,
+      "hp": 100,
+      "elapsed": 3.4,
+      "enemies": 2,
+      "logSnapshot": "logs/bug_18_20260321_021350.log"
+    }
+  },
+  {
+    "id": 19,
+    "desc": "融合界面双持手枪显示的尺寸是2*2，但实际是1*2",
+    "time": "2026-03-21 02:22:39",
+    "priority": 2,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 8,
+      "hp": 170,
+      "elapsed": 69.6,
+      "enemies": 5,
+      "logSnapshot": "logs/bug_19_20260321_022239.log"
+    }
+  },
+  {
+    "id": 20,
+    "desc": "全屏减速技能对新生成的敌人无效，这个需要改一下",
+    "time": "2026-03-21 13:47:25",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 9,
+      "hp": 122,
+      "elapsed": 107.0,
+      "enemies": 108,
+      "logSnapshot": "logs/bug_20_20260321_134725.log"
+    }
+  },
+  {
+    "id": 21,
+    "desc": "目前技能的技能槽和实际的按键对应不上，在获取技能的时候，技能按键为Q的和技能按键为E的会产生冲突，要给技能槽这个属性加到技能的类型里面去",
+    "time": "2026-03-21 14:41:18",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 9,
+      "hp": 180,
+      "elapsed": 102.7,
+      "enemies": 81,
+      "logSnapshot": "logs/bug_21_20260321_144118.log"
+    }
+  },
+  {
+    "id": 22,
+    "desc": "间隔时间自动触发的技能没有充能UI，这个要补充上",
+    "time": "2026-03-21 14:42:40",
+    "priority": 2,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 4,
+      "hp": 130,
+      "elapsed": 9.3,
+      "enemies": 3,
+      "logSnapshot": "logs/bug_22_20260321_144240.log"
+    }
+  },
+  {
+    "id": 23,
+    "desc": "投掷炸弹的技能描述是E技能，但实际上是q技能，这个要处理一下",
+    "time": "2026-03-21 14:43:51",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 5,
+      "hp": 140,
+      "elapsed": 25.3,
+      "enemies": 3,
+      "logSnapshot": "logs/bug_23_20260321_144351.log"
+    }
+  },
+  {
+    "id": 24,
+    "desc": "目前技能槽由比较大的缺陷，技能是按照获取顺序一次填充的，而不是按照技能设定的技能槽去填充顶替的，这会导致错误",
+    "time": "2026-03-21 14:45:12",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 6,
+      "hp": 150,
+      "elapsed": 35.5,
+      "enemies": 3,
+      "logSnapshot": "logs/bug_24_20260321_144512.log"
+    }
+  },
+  {
+    "id": 25,
+    "desc": "背包界面需要一个技能面板，显示当前拥有的技能列表，在选择中技能的时候，和武器一样，需要有技能详情的描述",
+    "time": "2026-03-21 14:47:25",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 8,
+      "hp": 170,
+      "elapsed": 64.8,
+      "enemies": 31,
+      "logSnapshot": "logs/bug_25_20260321_144725.log"
+    }
+  },
+  {
+    "id": 26,
+    "desc": "被动技能触发的爆炸等效果，也要有技能表现",
+    "time": "2026-03-21 14:48:27",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 9,
+      "hp": 174,
+      "elapsed": 100.6,
+      "enemies": 84,
+      "logSnapshot": "logs/bug_26_20260321_144827.log"
+    }
+  },
+  {
+    "id": 27,
+    "desc": "在武器详情页面里，武器拥有的标签应该单独显示在武器名字后面",
+    "time": "2026-03-21 14:53:02",
+    "priority": 2,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 16,
+      "hp": 221,
+      "elapsed": 235.0,
+      "enemies": 98,
+      "logSnapshot": "logs/bug_27_20260321_145302.log"
+    }
+  },
+  {
+    "id": 28,
+    "desc": "被技能打死的敌人似乎没有正常掉落灵魂经验",
+    "time": "2026-03-21 14:54:00",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 16,
+      "hp": 281,
+      "elapsed": 261.6,
+      "enemies": 20,
+      "logSnapshot": "logs/bug_28_20260321_145400.log"
+    }
+  },
+  {
+    "id": 29,
+    "desc": "投掷炸弹等指向性技能，要用角色最后一次的移动方向作为瞄准方向",
+    "time": "2026-03-21 14:57:57",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 23,
+      "hp": 370,
+      "elapsed": 361.5,
+      "enemies": 5,
+      "logSnapshot": "logs/bug_29_20260321_145757.log"
+    }
+  },
+  {
+    "id": 30,
+    "desc": "第一次进入游戏的时候，还没有获得技能时，左下角的技能栏没有显示出来",
+    "time": "2026-03-21 16:22:38",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 1,
+      "hp": 100,
+      "elapsed": 7.0,
+      "enemies": 2,
+      "logSnapshot": "logs/bug_30_20260321_162238.log"
+    }
+  },
+  {
+    "id": 31,
+    "desc": "背包页面还是没有技能详情",
+    "time": "2026-03-21 16:25:55",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-21",
+    "log": {
+      "level": 4,
+      "hp": 130,
+      "elapsed": 34.7,
+      "enemies": 3,
+      "logSnapshot": "logs/bug_31_20260321_162555.log"
+    }
+  },
+  {
+    "id": 32,
+    "desc": "触发形的技能在触发的时候也需要特效",
+    "time": "2026-03-22 00:50:33",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-22",
+    "log": {
+      "level": 12,
+      "hp": 210,
+      "elapsed": 93.4,
+      "enemies": 72,
+      "logSnapshot": "logs/bug_32_20260322_005033.log"
+    }
+  },
+  {
+    "id": 33,
+    "desc": "似乎有些武器无法对boss生效，看下什么原因",
+    "time": "2026-03-22 00:54:57",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-22",
+    "log": {
+      "level": 23,
+      "hp": 375,
+      "elapsed": 258.6,
+      "enemies": 5,
+      "logSnapshot": "logs/bug_33_20260322_005457.log"
+    }
+  },
+  {
+    "id": 34,
+    "desc": "传承选择界面无法通过wasd移动光标",
+    "time": "2026-03-22 13:10:16",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-22",
+    "log": {
+      "level": 5,
+      "hp": 0,
+      "elapsed": 43.7,
+      "enemies": 14,
+      "logSnapshot": "logs/bug_34_20260322_131016.log"
+    }
+  },
+  {
+    "id": 35,
+    "desc": "传承技能没有正确的消耗掉，每一局结束的时候需要将传承技能清理掉",
+    "time": "2026-03-22 13:12:39",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-22",
+    "log": {
+      "level": 1,
+      "hp": 100,
+      "elapsed": 5.9,
+      "enemies": 2,
+      "logSnapshot": "logs/bug_35_20260322_131239.log"
+    }
+  },
+  {
+    "id": 36,
+    "desc": "传承技能没有显示到背包界面的技能面板里面",
+    "time": "2026-03-22 14:32:05",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-22",
+    "log": {
+      "level": 1,
+      "hp": 100,
+      "elapsed": 5.2,
+      "enemies": 2,
+      "logSnapshot": "logs/bug_36_20260322_143205.log"
+    }
+  },
+  {
+    "id": 37,
+    "desc": "魔法护罩生效期间，需要持续在角色周围显示护盾特效，后续其他持续性技能效果都要做类似的功能",
+    "time": "2026-03-23 15:54:43",
+    "priority": 3,
+    "log": {
+      "level": 5,
+      "hp": 140,
+      "elapsed": 40.3,
+      "enemies": 6,
+      "logSnapshot": "logs/bug_37_20260323_155443.log"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 38,
+    "desc": "全屏减速的buff效果没有显示持续时间",
+    "time": "2026-03-23 15:56:08",
+    "priority": 3,
+    "log": {
+      "level": 12,
+      "hp": 265,
+      "elapsed": 79.8,
+      "enemies": 18,
+      "logSnapshot": "logs/bug_38_20260323_155608.log"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 39,
+    "desc": "被顶替掉的技能还是回显示在背包界面的技能列表里面",
+    "time": "2026-03-23 15:58:21",
+    "priority": 3,
+    "log": {
+      "level": 16,
+      "hp": 305,
+      "elapsed": 139.4,
+      "enemies": 5,
+      "logSnapshot": "logs/bug_39_20260323_155821.log"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 40,
+    "desc": "胜利结算后还会弹出升级奖励选择界面",
+    "time": "2026-03-23 16:04:38",
+    "priority": 3,
+    "log": {
+      "level": 25,
+      "hp": 395,
+      "elapsed": 335.0,
+      "enemies": 50,
+      "logSnapshot": "logs/bug_40_20260323_160438.log"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 41,
+    "desc": "远程蓝色敌人的子弹似乎没有显示出来",
+    "time": "2026-03-23 16:45:25",
+    "priority": 3,
+    "log": {
+      "level": 25,
+      "hp": 370,
+      "elapsed": 347.7,
+      "enemies": 3,
+      "logSnapshot": "logs/bug_41_20260323_164525.log"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 42,
+    "desc": "超过8个武器之后右下角的武器list不会再新增了，将这个面板扩展一下，支持多行显示",
+    "time": "2026-03-23 16:55:43",
+    "priority": 3,
+    "log": {
+      "level": 27,
+      "hp": 415,
+      "elapsed": 415.9,
+      "enemies": 22,
+      "logSnapshot": "logs/bug_42_20260323_165543.log"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 43,
+    "desc": "敌人的子弹颜色要和玩家的做一些区分",
+    "time": "2026-03-23 19:16:14",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-23",
+    "log": {
+      "level": 11,
+      "hp": 230,
+      "elapsed": 78.7,
+      "enemies": 14,
+      "logSnapshot": "logs/bug_43_20260323_191614.log",
+      "screenshot": "D:/WorkSpace_Love2d/Zero/data/logs/screenshot_20260323_191550.png"
+    }
+  },
+  {
+    "id": 44,
+    "desc": "这里钢铁意志的技能描述里面要去掉被动:这几个字符",
+    "time": "2026-03-23 19:17:14",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-23",
+    "log": {
+      "level": 15,
+      "hp": 270,
+      "elapsed": 98.4,
+      "enemies": 14,
+      "logSnapshot": "logs/bug_44_20260323_191714.log",
+      "screenshot": "D:/WorkSpace_Love2d/Zero/data/logs/screenshot_20260323_191651.png"
+    }
+  },
+  {
+    "id": 45,
+    "desc": "血量值出现了小数",
+    "time": "2026-03-23 23:58:34",
+    "priority": 3,
+    "log": {
+      "level": 1,
+      "hp": 80,
+      "elapsed": 13.3,
+      "enemies": 7,
+      "logSnapshot": "logs/bug_45_20260323_235834.log",
+      "screenshot": "D:/WorkSpace_Love2d/Zero/data/logs/screenshot_20260323_235815.png"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 46,
+    "desc": "边缘掉血的频率要更线性一些，改为每一帧掉血",
+    "time": "2026-03-23 23:59:30",
+    "priority": 3,
+    "log": {
+      "level": 3,
+      "hp": 148,
+      "elapsed": 29.5,
+      "enemies": 12,
+      "logSnapshot": "logs/bug_46_20260323_235930.log",
+      "screenshot": "D:/WorkSpace_Love2d/Zero/data/logs/screenshot_20260323_235859.png"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 47,
+    "desc": "左上角这里的边缘效果不太好看，调整一下",
+    "time": "2026-03-24 00:00:08",
+    "priority": 2,
+    "log": {
+      "level": 5,
+      "hp": 188,
+      "elapsed": 38.6,
+      "enemies": 19,
+      "logSnapshot": "logs/bug_47_20260324_000008.log",
+      "screenshot": "D:/WorkSpace_Love2d/Zero/data/logs/screenshot_20260323_235946.png"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 48,
+    "desc": "刷新技能的选项应该在这一层的菜单",
+    "time": "2026-03-24 00:01:38",
+    "priority": 3,
+    "log": {
+      "level": 11,
+      "hp": 250,
+      "elapsed": 72.7,
+      "enemies": 31,
+      "logSnapshot": "logs/bug_48_20260324_000138.log",
+      "screenshot": "D:/WorkSpace_Love2d/Zero/data/logs/screenshot_20260324_000108.png"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 49,
+    "desc": "超载技能没有特效，超载的技能流程是给与玩家buff，所有的buff都要有对应的特效效果",
+    "time": "2026-03-24 00:03:34",
+    "priority": 3,
+    "log": {
+      "level": 15,
+      "hp": 345,
+      "elapsed": 105.2,
+      "enemies": 50,
+      "logSnapshot": "logs/bug_49_20260324_000334.log",
+      "screenshot": "D:/WorkSpace_Love2d/Zero/data/logs/screenshot_20260324_000247.png"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 50,
+    "desc": "在选择技能界面返回时会直接卡掉本次技能选择，我希望返回上一层级而不是直接退出，看一下武器的选择流程有没有类似的问题",
+    "time": "2026-03-24 00:22:15",
+    "priority": 3,
+    "log": {
+      "level": 2,
+      "hp": 110,
+      "elapsed": 14.4,
+      "enemies": 3,
+      "logSnapshot": "logs/bug_50_20260324_002215.log",
+      "screenshot": "D:/WorkSpace_Love2d/Zero/data/logs/screenshot_20260324_002033.png"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 51,
+    "desc": "灵魂刷新技能的时机还是不对，我期望的刷新时机是在选择技能的时候",
+    "time": "2026-03-24 00:23:52",
+    "priority": 3,
+    "log": {
+      "level": 2,
+      "hp": 110,
+      "elapsed": 16.6,
+      "enemies": 2,
+      "logSnapshot": "logs/bug_51_20260324_002352.log",
+      "screenshot": "D:/WorkSpace_Love2d/Zero/data/logs/screenshot_20260324_002219.png"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 52,
+    "desc": "左上角这里的效果变得更丑了，看看能不能将上面的红色区域和左边的连接到一起",
+    "time": "2026-03-24 00:25:19",
+    "priority": 3,
+    "log": {
+      "level": 1,
+      "hp": 100,
+      "elapsed": 8.6,
+      "enemies": 6,
+      "logSnapshot": "logs/bug_52_20260324_002519.log",
+      "screenshot": "D:/WorkSpace_Love2d/Zero/data/logs/screenshot_20260324_002446.png"
+    },
+    "status": "fixed"
+  },
+  {
+    "id": 53,
+    "desc": "目前的刷新会给三个选项全部刷掉，刷新机制值刷新光标选中的那个选项",
+    "time": "2026-03-24 00:34:18",
+    "priority": 3,
+    "log": {
+      "level": 2,
+      "hp": 160,
+      "elapsed": 16.6,
+      "enemies": 9,
+      "logSnapshot": "logs/bug_53_20260324_003418.log",
+      "screenshot": "D:/WorkSpace_Love2d/Zero/data/logs/screenshot_20260324_003346.png"
+    },
+    "status": "fixed"
+  }
 ]

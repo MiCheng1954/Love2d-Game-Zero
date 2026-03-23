@@ -30,7 +30,8 @@ function Collision.projectilesVsEnemies(projectiles, enemies)
     local kills = {}  -- 本次检测中被击杀的敌人
 
     for _, proj in ipairs(projectiles) do
-        if not proj._isDead then
+        -- Bug#41：跳过敌方投射物，敌方子弹不与敌人发生碰撞
+        if not proj._isDead and not proj._isEnemyProjectile then
             for _, enemy in ipairs(enemies) do
                 if not enemy._isDead then
                     -- 检测圆形碰撞

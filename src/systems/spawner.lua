@@ -50,6 +50,12 @@ function Spawner:setProjectileList(list)
     self._projectileList = list
 end
 
+-- 设置自定义生成点函数（场景覆盖用）
+-- @param fn: function(target) → x, y  若为 nil 则使用默认圆圈生成逻辑
+function Spawner:setSpawnOverride(fn)
+    self._spawnOverrideFn = fn
+end
+
 -- 每帧更新
 -- @param dt:     帧时间（秒）
 -- @param params: RhythmController:getSpawnParams() 返回的参数表
@@ -86,10 +92,17 @@ end
 
 -- 在玩家周围随机位置生成一个敌人
 function Spawner:_spawnOne()
-    local angle  = math.random() * math.pi * 2
-    local dist   = SPAWN_DIST_MIN + math.random() * (SPAWN_DIST_MAX - SPAWN_DIST_MIN)
-    local spawnX = self._target.x + math.cos(angle) * dist
-    local spawnY = self._target.y + math.sin(angle) * dist
+    local spawnX, spawnY
+    if self._spawnOverrideFn then
+        -- 场景提供自定义生成点
+        spawnX, spawnY = self._spawnOverrideFn(self._target)
+    else
+        -- 默认：在玩家周围圆圈外随机生成
+        local angle = math.random() * math.pi * 2
+        local dist  = SPAWN_DIST_MIN + math.random() * (SPAWN_DIST_MAX - SPAWN_DIST_MIN)
+        spawnX = self._target.x + math.cos(angle) * dist
+        spawnY = self._target.y + math.sin(angle) * dist
+    end
 
     -- 决定敌人类型
     local typeName = self:_pickEnemyType()

@@ -287,4 +287,108 @@ function FX.clear()
     _effects = {}
 end
 
+-- ============================================================
+-- Buff 持续特效同步（每帧调用，维持 Buff 期间的视觉状态）
+-- Bug#49：超载等 Buff 需要持续显示特效，不能只靠触发时的一次性特效
+-- ============================================================
+
+-- 持续特效注册表：buffId → 特效描述（每帧刷新时长，保持存活）
+local BUFF_PERSIST_FX = {
+    -- 超载：玩家周围橙色脉动光圈
+    overload = {
+        spawnFn = function(player)
+            addEffect({
+                type      = "orbit_ring",
+                x         = player.x,
+                y         = player.y,
+                playerRef = player,
+                radius    = 32,
+                duration  = 0.18,   -- 极短，每帧重新生成保持连续
+                r = 1.0, g = 0.55, b = 0.0,
+            })
+        end,
+    },
+    -- 战吼：红色脉动光圈
+    battle_cry = {
+        spawnFn = function(player)
+            addEffect({
+                type      = "orbit_ring",
+                x         = player.x,
+                y         = player.y,
+                playerRef = player,
+                radius    = 26,
+                duration  = 0.18,
+                r = 1.0, g = 0.25, b = 0.1,
+            })
+        end,
+    },
+    -- 狂怒：橙红脉动光圈（小）
+    rage = {
+        spawnFn = function(player)
+            addEffect({
+                type      = "orbit_ring",
+                x         = player.x,
+                y         = player.y,
+                playerRef = player,
+                radius    = 22,
+                duration  = 0.18,
+                r = 1.0, g = 0.45, b = 0.15,
+            })
+        end,
+    },
+    -- 魔法护盾：蓝色持续光圈（已由 mana_shield spawn 处理，此处补充持续效果）
+    mana_shield = {
+        spawnFn = function(player)
+            addEffect({
+                type      = "orbit_ring",
+                x         = player.x,
+                y         = player.y,
+                playerRef = player,
+                radius    = 30,
+                duration  = 0.18,
+                r = 0.3, g = 0.7, b = 1.0,
+            })
+        end,
+    },
+}
+
+-- 同步 Buff 持续特效（每帧由 game.lua 调用）
+-- @param player 玩家实例（含 _buffManager）
+function FX.syncBuffs(player)
+    if not player or not player._buffManager then return end
+    local bm = player._buffManager
+    for buffId, fxDef in pairs(BUFF_PERSIST_FX) do
+        if bm:has(buffId) then
+            -- 检查是否已有该 buff 的 orbit_ring（避免每帧都叠加）
+            local hasExisting = false
+            for _, e in ipairs(_effects) do
+                if e.type == "orbit_ring" and e._buffId == buffId then
+                    -- 已存在，刷新时长保持连续
+                    e.elapsed = 0
+                    hasExisting = true
+                    break
+                end
+            end
+            if not hasExisting then
+                -- 新建，标记 buffId 供后续识别
+                local before = #_effects
+                fxDef.spawnFn(player)
+                if #_effects > before then
+                    _effects[#_effects]._buffId = buffId
+                end
+            end
+        else
+            -- Buff 消失：移除对应的持续特效
+            local i = 1
+            while i <= #_effects do
+                if _effects[i]._buffId == buffId then
+                    table.remove(_effects, i)
+                else
+                    i = i + 1
+                end
+            end
+        end
+    end
+end
+
 return FX

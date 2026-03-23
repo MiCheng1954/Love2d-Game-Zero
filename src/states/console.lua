@@ -27,6 +27,7 @@ local HELP_LINES = {
     "  可用属性: speed attack maxhp hp souls critRate critDamage",
     "             expBonus soulBonus pickupRadius defense",
     "clear            - 清空控制台历史",
+    "debug            - 切换 debug 面板显示/隐藏",
     "help             - 显示此帮助",
 }
 
@@ -342,12 +343,16 @@ function Console:_execute(cmd)
             self:_addLine("无敌人列表引用")
         end
 
+    elseif verb == "debug" then
+        -- 需求#11：切换 debug 面板可见性
+        local HUD = require("src.ui.hud")
+        HUD.toggleDebug()
+        self:_addLine("Debug 面板: " .. (HUD.isDebugVisible() and "显示" or "隐藏"))
+
     else
         self:_addLine(T("console.unknown", cmd))
     end
 end
-
--- 每帧绘制控制台面板
 function Console:draw()
     Font.set(14)
 

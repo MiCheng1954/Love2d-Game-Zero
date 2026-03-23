@@ -225,40 +225,43 @@ local UpgradeConfig = {
                 local sm           = player:getSkillManager()
                 local Log          = require("src.utils.log")
 
-                -- 构建候选池：优先未拥有，其次可升级，满足角色限制
-                local notOwned = {}
-                local upgradeable = {}
-                for id, cfg in pairs(SkillConfig) do
-                    if not cfg.characterId or player.characterId == cfg.characterId then
-                        local lv = sm:getLevel(id)
-                        if lv == 0 then
-                            table.insert(notOwned, id)
-                        elseif lv < (cfg.maxLevel or 1) then
-                            table.insert(upgradeable, id)
+                -- 候选构建函数（首次展示和刷新复用）
+                -- Bug#39：排除被顶替出槽位的技能（_replacedSkills）
+                local function buildCandidates()
+                    local replaced2 = sm._replacedSkills or {}
+                    local notOwned2, upgradeable2 = {}, {}
+                    for id, cfg in pairs(SkillConfig) do
+                        if not replaced2[id] then
+                        if not cfg.characterId or player.characterId == cfg.characterId then
+                            local lv = sm:getLevel(id)
+                            if lv == 0 then
+                                table.insert(notOwned2, id)
+                            elseif lv < (cfg.maxLevel or 1) then
+                                table.insert(upgradeable2, id)
+                            end
+                        end
                         end
                     end
-                end
-
-                -- 随机打乱
-                local function shuffle(t)
-                    for i = #t, 2, -1 do
-                        local j = math.random(i)
-                        t[i], t[j] = t[j], t[i]
+                    local function sh(t)
+                        for i = #t, 2, -1 do
+                            local j = math.random(i)
+                            t[i], t[j] = t[j], t[i]
+                        end
                     end
+                    sh(notOwned2); sh(upgradeable2)
+                    local res = {}
+                    for _, id in ipairs(notOwned2) do
+                        if #res >= 3 then break end
+                        table.insert(res, id)
+                    end
+                    for _, id in ipairs(upgradeable2) do
+                        if #res >= 3 then break end
+                        table.insert(res, id)
+                    end
+                    return res
                 end
-                shuffle(notOwned)
-                shuffle(upgradeable)
 
-                -- 合并候选：最多取 3 个
-                local candidates = {}
-                for _, id in ipairs(notOwned) do
-                    if #candidates >= 3 then break end
-                    table.insert(candidates, id)
-                end
-                for _, id in ipairs(upgradeable) do
-                    if #candidates >= 3 then break end
-                    table.insert(candidates, id)
-                end
+                local candidates = buildCandidates()
 
                 if #candidates == 0 then
                     Log.info("技能池已空，无可选技能")
@@ -311,15 +314,38 @@ local UpgradeConfig = {
                     end
 
                     StateManager.push("skillSelectUI", {
-                        player     = player,
-                        candidates = candidates,
+                        player      = player,
+                        candidates  = candidates,
+                        refreshCost = 5,
+                        -- Bug#53：onRefresh 只返回一个新 id，替换当前选中项
+                        -- @param excludeId   当前被替换的 id
+                        -- @param currentList 当前完整候选列表（排除其中所有 id）
+                        onRefresh   = function(excludeId, currentList)
+                            local excluded = {}
+                            for _, id in ipairs(currentList or {}) do
+                                excluded[id] = true
+                            end
+                            -- 从完整候选池中随机取一个不在当前列表里的
+                            local pool = buildCandidates()
+                            local available = {}
+                            for _, id in ipairs(pool) do
+                                if not excluded[id] or id == excludeId then
+                                    -- 包含 excludeId 本身（可能被重新抽到）
+                                    if not excluded[id] then
+                                        table.insert(available, id)
+                                    end
+                                end
+                            end
+                            if #available == 0 then return nil end
+                            return available[math.random(#available)]
+                        end,
                         onSelect   = function(skillId)
                             local result = sm:add(skillId, player)
                             handleSkillResult(skillId, result)
                         end,
                         onCancel = function()
-                            StateManager.pop()           -- pop skillSelectUI
-                            if ctx.onDone then ctx.onDone() end
+                            -- Bug#50：只 pop skillSelectUI，返回 upgrade 大类层，不结束整个升级流程
+                            StateManager.pop()
                         end,
                     })
                     return true   -- deferred

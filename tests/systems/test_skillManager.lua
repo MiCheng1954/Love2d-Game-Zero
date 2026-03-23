@@ -6,6 +6,7 @@
 
 require("tests.helper")
 local SkillManager = require("src.systems.skillManager")
+local BuffManager  = require("src.systems.buffManager")
 
 -- 最小玩家 stub
 local function newPlayer(characterId)
@@ -21,6 +22,11 @@ local function newPlayer(characterId)
             self.hp = math.min(self.maxHp, self.hp + n)
         end,
         _bag = nil,
+        -- Phase 10.1：BuffManager（技能 effect 通过 _buffManager 管理 Buff 状态）
+        _buffManager   = BuffManager.new(),
+        -- 护盾相关字段（mana_shield Buff onApply/onRemove 会写入）
+        _shieldActive  = false,
+        _shieldAbsorbed = false,
     }
 end
 
@@ -233,8 +239,10 @@ describe("SkillManager", function()
 
         it("冷却结束后再次受伤可以触发", function()
             sm:onHit(player, 10, ctx)
-            -- 恢复攻击力（模拟 buff 过期）
-            sm:update(25.0, player, ctx, 0)  -- 超过 rage timer 5s 且 CD 20s
+            -- 恢复攻击力：先更新 BuffManager 让 rage Buff 到期（5s）
+            player._buffManager:update(6.0, player)
+            -- 再更新 SM 的 onhit CD（20s）
+            sm:update(25.0, player, ctx, 0)
             local atkBetween = player.attack
             sm:onHit(player, 10, ctx)
             assert.is_true(player.attack > atkBetween)

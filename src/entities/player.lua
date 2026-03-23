@@ -10,6 +10,7 @@ local Bag          = require("src.systems.bag")
 local Weapon       = require("src.entities.weapon")
 local SkillManager = require("src.systems.skillManager")
 local LegacyManager = require("src.systems.legacyManager")   -- Phase 10
+local BuffManager   = require("src.systems.buffManager")      -- Phase 10.1
 
 local Player = setmetatable({}, { __index = Entity })
 Player.__index = Player
@@ -48,8 +49,8 @@ function Player.new(x, y)
     self._legacyExpMult     = 0       -- 传承经验倍率加成
     self._legacySoulsMult   = 0       -- 传承灵魂获取倍率
 
-    -- Phase 10：无敌帧（简化版，Phase 10.1 改为 Buff 管理器）
-    self._invincibleTimer   = 0
+    -- Phase 10.1：Buff 管理器（替换原 _invincibleTimer 等散落 timer 字段）
+    self._buffManager       = BuffManager.new()
 
     -- 战斗属性（Phase 8 补全）
     self.attack       = 10    -- 基础攻击力
@@ -93,13 +94,8 @@ end
 function Player:update(dt, extraSpeed)
     self:_handleMovement(dt, extraSpeed)
 
-    -- Phase 10：无敌帧倒计时
-    if self._invincibleTimer and self._invincibleTimer > 0 then
-        self._invincibleTimer = self._invincibleTimer - dt
-        if self._invincibleTimer < 0 then
-            self._invincibleTimer = 0
-        end
-    end
+    -- Phase 10.1：通过 BuffManager 统一更新所有 Buff 倒计时
+    self._buffManager:update(dt, self)
 end
 
 -- 处理玩家移动逻辑
@@ -189,13 +185,19 @@ function Player:onDeath()
     -- Phase 10：死亡流程由 game.lua 检测 isDead() 后处理（复活/传承）
 end
 
--- Phase 10：覆盖 takeDamage，加入无敌帧检查
+-- Phase 10.1：覆盖 takeDamage，通过 BuffManager 检查无敌/护盾状态
 -- @param amount: 原始伤害值
 -- @param isCrit: 是否暴击
 -- @return 实际造成伤害值
 function Player:takeDamage(amount, isCrit)
+    local bm = self._buffManager
     -- 无敌帧期间免疫所有伤害
-    if self._invincibleTimer and self._invincibleTimer > 0 then
+    if bm:has("invincible") then
+        return 0
+    end
+    -- 魔法护盾：吸收一次伤害后立即移除
+    if bm:has("mana_shield") then
+        bm:remove("mana_shield", self)
         return 0
     end
     -- 委托给基类计算

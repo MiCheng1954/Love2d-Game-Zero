@@ -19,6 +19,11 @@ local SkillSelectUI    = require("src.states.skillSelectUI")    -- Phase 8
 local SkillConflictUI  = require("src.states.skillConflictUI")  -- Phase 8
 local ReviveUI     = require("src.states.reviveUI")     -- Phase 10
 local LegacySelect = require("src.states.legacySelect") -- Phase 10
+local TriggerUI    = require("src.ui.triggerUI")        -- Phase 11
+local SceneSelect  = require("src.states.sceneSelect")  -- Phase 12
+local SceneManager = require("src.systems.sceneManager") -- Phase 12
+local Plains       = require("src.scenes.plains")        -- Phase 12
+local Arena        = require("src.scenes.arena")         -- Phase 12
 
 -- 游戏初始化，Love2D 启动后调用一次
 function love.load()
@@ -47,6 +52,13 @@ function love.load()
     StateManager.register("skillConflictUI", SkillConflictUI)  -- Phase 8
     StateManager.register("reviveUI",        ReviveUI)         -- Phase 10
     StateManager.register("legacySelect",    LegacySelect)     -- Phase 10
+    StateManager.register("triggerUI",       TriggerUI)        -- Phase 11
+    StateManager.register("sceneSelect",     SceneSelect)      -- Phase 12
+
+    -- 注册场景实例到 SceneManager（Phase 12）
+    SceneManager.register("plains",  Plains.new())
+    SceneManager.register("arena",   Arena.new())
+    SceneManager.set("plains")  -- 默认场景：平原
 
     -- 设置默认字体抗锯齿过滤
     love.graphics.setDefaultFilter("nearest", "nearest")
@@ -90,18 +102,27 @@ function love.keypressed(key, scancode, isrepeat)
         end
     end
 
-    -- F12 键：呼出开发反馈面板（Bug / 需求统一入口，[可剔除] 注释此块即可移除）
+    -- F12 键：先截图，截图回调完成后再弹出反馈面板（[可剔除] 注释此块即可移除）
     if key == "f12" then
         local Console = require("src.states.console")
         if curState ~= Console then
             local DevReport = require("src.states.devReport")
             if curState ~= DevReport then
                 local Game = require("src.states.game")
-                StateManager.push("devReport", {
+                -- 收集上下文数据（在回调前先收集，防止回调时状态已变化）
+                local reportData = {
                     player  = Game._getPlayer(),
                     spawner = Game._getSpawner(),
                     enemies = Game._getEnemies(),
-                })
+                }
+                -- 截图当前帧（captureScreenshot 是异步的，回调在下一帧渲染后执行）
+                -- 截图完成后才 push 面板，确保面板本身不出现在截图里
+                love.graphics.captureScreenshot(function(imageData)
+                    -- 保存截图到 data/logs/
+                    local screenshotPath = Log.saveScreenshot(imageData)
+                    reportData.screenshotPath = screenshotPath
+                    StateManager.push("devReport", reportData)
+                end)
                 return
             end
         end

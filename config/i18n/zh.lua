@@ -207,9 +207,11 @@ return {
     -- ============================================================
 
     -- 技能选择界面
-    ["skill_select.title"] = "★  获得技能  ★",
-    ["skill_select.hint"]  = "↑↓ 移动   Enter 确认   ESC 取消",
-    ["skill_select.empty"] = "（暂无可选技能）",
+    ["skill_select.title"]        = "★  获得技能  ★",
+    ["skill_select.hint"]         = "↑↓ 移动   Enter 确认   ESC 取消",
+    ["skill_select.hint_refresh"] = "↑↓ 移动   Enter 确认   R 刷新(%d灵魂)   ESC 取消",
+    ["skill_select.empty"]        = "（暂无可选技能）",
+    ["skill_select.no_souls"]     = "灵魂不足（需要 %d 个）",
 
     -- Phase 8：技能 Tag 显示名
     ["tag.skill.防御"] = "防御",
@@ -254,11 +256,11 @@ return {
     ["skill.counter_shot.desc"] = "受伤后向最近敌人发射 3 颗 30 伤害弹，CD 10s",
     ["skill.rage.desc"]         = "受伤后攻击力+50% 持续 5s，CD 20s",
     ["skill.thorns.desc"]       = "受伤后将 50% 伤害反弹给攻击者，CD 8s",
-    ["skill.iron_body.desc"]    = "被动：最大生命值 +50",
-    ["skill.swift_feet.desc"]   = "被动：移动速度 +40",
-    ["skill.sharpshooter.desc"] = "被动：暴击率 +10%，暴击伤害 +30%",
-    ["skill.energy_field.desc"] = "被动：拾取范围 +80，经验获取 +20%",
-    ["skill.iron_will.desc"]    = "被动：受到伤害减少 10%",
+    ["skill.iron_body.desc"]    = "最大生命值 +50",
+    ["skill.swift_feet.desc"]   = "移动速度 +40",
+    ["skill.sharpshooter.desc"] = "暴击率 +10%，暴击伤害 +30%",
+    ["skill.energy_field.desc"] = "拾取范围 +80，经验获取 +20%",
+    ["skill.iron_will.desc"]    = "受到伤害减少 10%",
     ["skill.overload.desc"]     = "【角色专属】背包所有武器射速×2 持续 4s，CD 30s",
 
     -- Phase 8：技能羁绊名称与描述
@@ -363,4 +365,65 @@ return {
     -- HUD：传承图标悬停文字
     ["hud.legacy_icon"]             = "传承",
     ["hud.legacy_none"]             = "（无传承）",
+
+    -- ============================================================
+    -- Phase 10.1：Buff 系统
+    -- ============================================================
+
+    -- Buff 名称（用于 Buff HUD 显示）
+    ["buff.invincible.name"]        = "无敌",
+    ["buff.battle_cry.name"]        = "战吼",
+    ["buff.rage.name"]              = "狂怒",
+    ["buff.overload.name"]          = "超载",
+    ["buff.mana_shield.name"]       = "护盾",
+    ["buff.soul_drain_range.name"]  = "灵魂汲取",
+    ["buff.global_slow.name"]       = "时间减缓",
+    ["buff.ammo_supply.name"]       = "弹药强化",
+
+    -- ============================================================
+    -- Phase 11：主菜单完善
+    -- ============================================================
+    ["menu.continue"]               = "继续游戏",
+    ["menu.settings"]               = "设置",
+    ["menu.exit"]                   = "退出游戏",
+    ["menu.char_select_hint"]       = "角色选择（敬请期待）",
+    ["menu.version"]                = "版本 0.11",
+
+    -- ============================================================
+    -- Phase 12：场景系统
+    -- ============================================================
+
+    -- 场景选择界面
+    ["scene_select.title"]          = "◈  选择战场  ◈",
+    ["scene_select.hint"]           = "← → 切换   Enter 进入战场   ESC 返回",
+
+    -- 平原场景
+    ["scene.plains.name"]           = "苍茫平原",
+    ["scene.plains.desc"]           = "无垠的荒野，敌人从四面八方涌来。标准难度，适合初次挑战。",
+    ["scene.plains.difficulty"]     = "★☆☆  普通",
+
+    -- 竞技场场景
+    ["scene.arena.name"]            = "封闭竞技场",
+    ["scene.arena.desc"]            = "四面高墙封锁的擂台，靠近边界会持续受伤。敌人更密集，灵魂掉落×1.3。",
+    ["scene.arena.difficulty"]      = "★★☆  中等",
+
+    -- 地下城场景
+    ["scene.dungeon.name"]          = "暗影地下城",
+    ["scene.dungeon.desc"]          = "蜿蜒的石室通道，迷宫般的房间结构。（即将开放）",
+    ["scene.dungeon.difficulty"]    = "★★★  挑战",
+
+    -- Boss 名称（Phase 12）
+    ["boss.charger.name"]           = "冲锋者",
+
+    -- ============================================================
+    -- Phase 11：触发器 UI
+    -- ============================================================
+    ["trigger.title"]               = "✦  获得奖励  ✦",
+    ["trigger.auto_close"]          = "%.1f 秒后自动关闭",
+    ["trigger.confirm"]             = "按任意键确认",
+    ["trigger.type.stat"]           = "属性强化",
+    ["trigger.type.weapon"]         = "武器获得",
+    ["trigger.type.skill"]          = "技能获得",
+    ["trigger.type.bag"]            = "背包扩展",
+    ["trigger.type.soul"]           = "灵魂转换",
 }

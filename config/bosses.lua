@@ -270,4 +270,59 @@ BossConfig[4] = {
     },
 }
 
+-- ── Boss 5：冲锋者（Phase 12，竞技场专属，3分钟触发）──
+-- 三阶段状态机：PATROL（普通追击）→ WINDUP（蓄力，停滞 0.6s）→ CHARGE（冲刺，800px/s 持续 0.5s）
+-- 死亡时分裂为 6 只 fast 小兵
+-- 不计入普通 Boss 序列（arena.bossPool 过滤，只出现在竞技场场景）
+BossConfig[5] = {
+    id          = "charger",
+    phase       = 3,            -- 3 分钟触发（普通场景被 bossPool 过滤掉）
+    nameKey     = "boss.charger.name",
+    hp          = 3000,
+    attack      = 60,
+    defense     = 8,
+    speed       = 100,
+    radius      = 30,
+    color       = {0.90, 0.45, 0.10},   -- 橙红
+    expDrop     = 500,
+    soulDrop    = 80,
+    isFinal     = false,
+    skills = {
+        -- 技能1：蓄力+冲刺状态机（每 4 秒循环）
+        -- WINDUP：设置蓄力标记 + 方向锁定，持续 0.6s；CHARGE：高速冲刺 800px/s，持续 0.5s
+        {
+            id       = "charge_sequence",
+            interval = 4.0,
+            effect   = function(boss, player, projectiles)
+                if not player or not boss._target then return end
+                -- 锁定方向（蓄力期间不追踪）
+                local dx = boss._target.x - boss.x
+                local dy = boss._target.y - boss.y
+                local d  = math.sqrt(dx * dx + dy * dy)
+                if d < 1 then return end
+                -- 蓄力阶段：停滞 0.6s 后冲刺
+                boss._chargeDx    = dx / d
+                boss._chargeDy    = dy / d
+                boss._chargeTimer = -0.6   -- 负值表示蓄力阶段（Boss:update 中处理）
+                boss._chargeSpeed = 0      -- 蓄力阶段速度为 0
+                boss._windupTimer = 0.6    -- 蓄力倒计时
+            end,
+        },
+        -- 技能2：横扫冲击（每 7 秒，近身 100px 内造成 50 伤害）
+        {
+            id       = "slam",
+            interval = 7.0,
+            effect   = function(boss, player, projectiles)
+                if not player then return end
+                local dx = player.x - boss.x
+                local dy = player.y - boss.y
+                if math.sqrt(dx * dx + dy * dy) <= 100 then
+                    player:takeDamage(50)
+                end
+                boss._punchFlash = 0.3
+            end,
+        },
+    },
+}
+
 return BossConfig
