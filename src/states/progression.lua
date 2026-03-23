@@ -289,6 +289,21 @@ end
 
 --- 技能树面板输入处理
 function Progression:_updateTree()
+    -- ← → 切换英雄
+    local CHAR_LIST = { "engineer", "berserker", "phantom" }
+    if Input.isPressed("moveLeft") or Input.isPressed("moveRight") then
+        local curIdx = 1
+        for i, cid in ipairs(CHAR_LIST) do
+            if cid == self._charId then curIdx = i; break end
+        end
+        local dir = Input.isPressed("moveLeft") and -1 or 1
+        local newIdx = ((curIdx - 1 + dir) % #CHAR_LIST) + 1
+        self._charId   = CHAR_LIST[newIdx]
+        self._flatNodes = self:_buildFlatNodes()
+        self._treeIdx   = 1
+        return
+    end
+
     local n = #self._flatNodes
     if n == 0 then return end
 
@@ -744,11 +759,16 @@ function Progression:_drawTreePanel()
         string.format("里程碑点数：%d", mpts),
         PANEL_X, PANEL_Y - 4, PANEL_W, "left")
 
-    -- 角色名 + 颜色
+    -- 角色名 + 颜色（中间显示，带 ← → 切换提示）
     local charColor = charCfg.color or {0.7, 0.7, 0.9}
     Font.set(17)
     love.graphics.setColor(charColor)
     love.graphics.printf(T(charCfg.nameKey), PANEL_X, PANEL_Y - 4, PANEL_W, "right")
+
+    -- 切换英雄提示（← → 切换）
+    Font.set(13)
+    love.graphics.setColor(0.45, 0.45, 0.5)
+    love.graphics.printf("← → 切换英雄", PANEL_X, PANEL_Y - 4, PANEL_W, "center")
 
     -- 主干标题
     local colAX = PANEL_X
@@ -765,10 +785,11 @@ function Progression:_drawTreePanel()
     love.graphics.setColor(0.25, 0.25, 0.3)
     love.graphics.rectangle("fill", PANEL_X, titleY + 20, PANEL_W, 1)
 
-    -- 绘制节点列表
+    -- 节点列表可用高度（底部留出详情框）
     local nodeStartY = titleY + 30
     local trunkAIdx  = 0
     local trunkBIdx  = 0
+    local selectedItem = nil   -- Bug#55：循环后统一绘制详情框
 
     for i, item in ipairs(self._flatNodes) do
         local node     = item.node
@@ -863,10 +884,15 @@ function Progression:_drawTreePanel()
             love.graphics.print(string.format("消耗 %d 点", node.cost or 0), nx + 30, ny + 28)
         end
 
-        -- 选中时右侧显示描述（仅选中节点）
+        -- Bug#55：不在此处画详情框，记录后循环结束统一绘制
         if selected then
-            self:_drawNodeDetail(node, unlocked, canUnlock, mpts)
+            selectedItem = { node = node, unlocked = unlocked, canUnlock = canUnlock }
         end
+    end
+
+    -- Bug#55 修复：所有节点卡片绘制完毕后再画详情框（避免被 B 列节点压住）
+    if selectedItem then
+        self:_drawNodeDetail(selectedItem.node, selectedItem.unlocked, selectedItem.canUnlock, mpts)
     end
 end
 
@@ -881,58 +907,45 @@ function Progression:_canUnlock(node)
     return true
 end
 
---- 绘制技能树节点右侧详情
+--- 绘制技能树节点详情（面板底部，避免与节点卡片重叠）
 function Progression:_drawNodeDetail(node, unlocked, canUnlock, mpts)
-    local bx = PANEL_X + PANEL_W / 2 + 10
-    local by = PANEL_Y + 54
-    local bw = PANEL_W / 2 - 10
-    local bh = 200
+    -- 详情框固定在面板底部
+    local bh = 110
+    local bx = PANEL_X
+    local by = PANEL_Y + PANEL_H - bh
+    local bw = PANEL_W
 
-    love.graphics.setColor(0.1, 0.1, 0.18, 0.92)
+    love.graphics.setColor(0.08, 0.09, 0.16, 0.95)
     love.graphics.rectangle("fill", bx, by, bw, bh, 8, 8)
     love.graphics.setColor(0.25, 0.3, 0.55)
     love.graphics.rectangle("line", bx, by, bw, bh, 8, 8)
 
     -- 节点名
-    Font.set(18)
+    Font.set(16)
     love.graphics.setColor(1.0, 0.9, 0.6)
-    love.graphics.printf(T(node.nameKey), bx + 12, by + 12, bw - 24, "left")
+    love.graphics.print(T(node.nameKey), bx + 16, by + 10)
 
     -- 描述
-    Font.set(14)
-    love.graphics.setColor(0.8, 0.82, 0.85)
-    love.graphics.printf(T(node.descKey), bx + 12, by + 42, bw - 24, "left")
-
-    -- 费用与点数状态
     Font.set(13)
-    local costY = by + 110
+    love.graphics.setColor(0.8, 0.82, 0.85)
+    love.graphics.printf(T(node.descKey), bx + 16, by + 34, bw - 32, "left")
+
+    -- 费用与解锁状态
+    Font.set(13)
     if unlocked then
         love.graphics.setColor(0.4, 0.85, 0.5)
-        love.graphics.printf(T("progression.unlocked"), bx, costY, bw, "center")
+        love.graphics.print(T("progression.unlocked"), bx + 16, by + 80)
+    elseif not canUnlock then
+        love.graphics.setColor(0.75, 0.4, 0.4)
+        love.graphics.print(T("progression.locked"), bx + 16, by + 80)
     else
-        -- 前置状态
-        if not canUnlock then
-            love.graphics.setColor(0.75, 0.4, 0.4)
-            love.graphics.printf(T("progression.locked"), bx, costY, bw, "center")
+        local enough = mpts >= (node.cost or 0)
+        if enough then
+            love.graphics.setColor(0.4, 0.8, 0.4)
+            love.graphics.print(string.format("消耗 %d 点  [ Enter 解锁 ]", node.cost or 0), bx + 16, by + 80)
         else
-            local enough = mpts >= (node.cost or 0)
-            if enough then
-                love.graphics.setColor(0.4, 0.8, 0.4)
-                love.graphics.printf(
-                    string.format(T("progression.unlock"), node.cost or 0),
-                    bx, costY, bw, "center")
-            else
-                love.graphics.setColor(0.85, 0.35, 0.35)
-                love.graphics.printf(
-                    string.format("需要 %d 点（当前 %d 点）", node.cost or 0, mpts),
-                    bx, costY, bw, "center")
-            end
-
-            Font.set(14)
-            if enough then
-                love.graphics.setColor(0.35, 0.75, 0.35)
-                love.graphics.printf("[ Enter 解锁 ]", bx, costY + 28, bw, "center")
-            end
+            love.graphics.setColor(0.85, 0.35, 0.35)
+            love.graphics.print(string.format("需要 %d 点（当前 %d 点）", node.cost or 0, mpts), bx + 16, by + 80)
         end
     end
 end

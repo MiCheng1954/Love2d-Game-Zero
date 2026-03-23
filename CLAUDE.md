@@ -210,6 +210,8 @@ Bug 和需求数据优先从以下路径读取：
 - `D:\WorkSpace_Love2d\Zero\data\features.json`
 - `D:\WorkSpace_Love2d\Zero\data\features.md`
 
+> ⚠️ **本项目特别规则**：修复 Bug 前**无需**生成 `Claude/Bug/BUG-XX-*.md` 计划文档，直接修改代码即可。全局规则中的 Bug/Feature 计划文档规范在 Zero 项目中**不适用**。
+
 ---
 
 ## 七、Git 提交规范

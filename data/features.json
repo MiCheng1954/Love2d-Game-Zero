@@ -149,9 +149,47 @@
       "elapsed": 227.5,
       "enemies": 6
     }
+  },
+  {
+    "id": 12,
+    "desc": "技能选择时添加用灵魂刷新的功能",
+    "time": "2026-03-23 19:19:28",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-23",
+    "log": {
+      "level": 18,
+      "hp": 300,
+      "elapsed": 176.4,
+      "enemies": 10
+    }
+  },
+  {
+    "id": 13,
+    "desc": "战吼技能添加一下跟随角色的特效",
+    "time": "2026-03-23 19:20:30",
+    "priority": 3,
+    "status": "fixed",
+    "fixedTime": "2026-03-23",
+    "log": {
+      "level": 20,
+      "hp": 318,
+      "elapsed": 201.2,
+      "enemies": 25
+    }
+  },
+  {
+    "id": 14,
+    "desc": "英雄技能树界面需要一个切换英雄的功能，也就是为那个英雄升级技能树",
+    "time": "2026-03-24 03:12:55",
+    "priority": 3,
+    "status": "fixed",
+    "log": {
+      "level": 0,
+      "hp": 0,
+      "elapsed": 0.0,
+      "enemies": 0
+    },
+    "fixedTime": "2026-03-24"
   }
-,
-  {"id":12,"desc":"技能选择时添加用灵魂刷新的功能","time":"2026-03-23 19:19:28","priority":3,"status":"fixed","fixedTime":"2026-03-23","log":{"level":18,"hp":300,"elapsed":176.4,"enemies":10}}
-,
-  {"id":13,"desc":"战吼技能添加一下跟随角色的特效","time":"2026-03-23 19:20:30","priority":3,"status":"fixed","fixedTime":"2026-03-23","log":{"level":20,"hp":318,"elapsed":201.2,"enemies":25}}
 ]
