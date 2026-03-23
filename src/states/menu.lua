@@ -26,10 +26,11 @@ local _exitAction = nil    -- 退出后的操作函数
 -- 菜单项定义
 -- enabled=false 的项目显示为灰色且不可选
 local _menuItems = {
-    { key = "menu.start",       enabled = true,  action = "game"    },
-    { key = "menu.char_select_hint", enabled = false, action = nil  },
-    { key = "menu.settings",    enabled = false, action = nil       },
-    { key = "menu.exit",        enabled = true,  action = "exit"    },
+    { key = "menu.start",        enabled = true,  action = "charSelect"  },
+    { key = "menu.progression",  enabled = true,  action = "progression" },
+    { key = "menu.achievements", enabled = true,  action = "achievements"},
+    { key = "menu.settings",     enabled = false, action = nil           },
+    { key = "menu.exit",         enabled = true,  action = "exit"        },
 }
 
 -- 粒子系统
@@ -91,11 +92,23 @@ end
 -- ============================================================
 local function triggerSelect(item)
     if not item.enabled then return end
-    if item.action == "game" then
+    if item.action == "charSelect" then
         _exitTimer  = 0
         _exitAction = function()
             local StateManager = require("src.states.stateManager")
-            StateManager.push("sceneSelect")
+            StateManager.push("characterSelect")
+        end
+    elseif item.action == "progression" then
+        _exitTimer  = 0
+        _exitAction = function()
+            local StateManager = require("src.states.stateManager")
+            StateManager.push("progression", { characterId = "engineer" })
+        end
+    elseif item.action == "achievements" then
+        _exitTimer  = 0
+        _exitAction = function()
+            local StateManager = require("src.states.stateManager")
+            StateManager.push("achievements")
         end
     elseif item.action == "exit" then
         _exitTimer  = 0

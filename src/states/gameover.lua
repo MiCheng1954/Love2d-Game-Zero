@@ -6,7 +6,9 @@
 
 local Gameover = {}
 
-local Font = require("src.utils.font")
+local Font               = require("src.utils.font")
+local ProgressionManager = require("src.systems.progressionManager")
+local MilestoneManager   = require("src.systems.milestoneManager")
 
 -- 结算数据项定义（显示顺序）
 local STAT_ITEMS = {
@@ -58,6 +60,34 @@ function Gameover:enter(data)
         end
     end
 
+    -- Phase 13：计算并写入成长点数
+    self._pointsEarned = 0
+    self._pointsBreakdown = {}
+    self._milestonePointsEarned = nil
+    if data then
+        local killPts    = math.floor((data.killCount or 0) / 50)       -- 每50击杀1点
+        local survivePts = math.floor((data.elapsed or 0) / 60)          -- 每分钟1点
+        local bossPts    = (#(data.killedBosses or {})) * 5              -- 每个Boss 5点
+        self._pointsEarned = killPts + survivePts + bossPts
+        self._pointsBreakdown = {
+            { label = "gameover.points_kill",    value = killPts    },
+            { label = "gameover.points_survive", value = survivePts },
+            { label = "gameover.points_boss",    value = bossPts    },
+        }
+        -- 写入进度管理器
+        if self._pointsEarned > 0 then
+            ProgressionManager.load()
+            ProgressionManager.addCommonPoints(self._pointsEarned)
+        end
+        -- 写入里程碑点数（从 milestoneManager）
+        local mm = data.milestoneManager
+        if mm and mm:getTotalPointsEarned() > 0 then
+            local charId = data.characterId or "engineer"
+            ProgressionManager.addMilestonePoints(charId, mm:getTotalPointsEarned())
+            self._milestonePointsEarned = mm:getTotalPointsEarned()
+        end
+    end
+
     -- 背景粒子（简单闪光装饰）
     self._sparkles = {}
     if self._isVictory then
@@ -76,12 +106,15 @@ end
 
 -- 退出结算状态时调用
 function Gameover:exit()
-    self._data        = nil
-    self._isVictory   = false
-    self._sparkles    = {}
-    self._counters    = {}
-    self._allRevealed = false
-    self._canExit     = false
+    self._data                  = nil
+    self._isVictory             = false
+    self._sparkles              = {}
+    self._counters              = {}
+    self._allRevealed           = false
+    self._canExit               = false
+    self._pointsEarned          = nil
+    self._pointsBreakdown       = nil
+    self._milestonePointsEarned = nil
 end
 
 -- 每帧更新结算界面逻辑
@@ -177,6 +210,9 @@ function Gameover:_drawVictory()
     -- 统计数据
     self:_drawStats(160, { 1.0, 0.95, 0.6 }, { 0.3, 1.0, 0.6 })
 
+    -- 成长点数
+    self:_drawPoints()
+
     -- 按键提示
     self:_drawHint()
 end
@@ -206,6 +242,9 @@ function Gameover:_drawDeath()
 
     -- 统计数据
     self:_drawStats(160, { 1.0, 0.8, 0.8 }, { 1.0, 0.45, 0.45 })
+
+    -- 成长点数
+    self:_drawPoints()
 
     -- 按键提示
     self:_drawHint()
@@ -307,6 +346,34 @@ function Gameover:_formatValue(item, current, index)
         return table.concat(names, " / ")
     end
     return "—"
+end
+
+-- 绘制成长点数区域（全部数据出现后才显示）
+function Gameover:_drawPoints()
+    if not self._allRevealed then return end
+    if not self._pointsEarned or self._pointsEarned == 0 then return end
+
+    local baseY = 560
+    Font.set(20)
+    love.graphics.setColor(1.0, 0.85, 0.15)
+    love.graphics.printf(T("gameover.points_earned") .. "：+" .. self._pointsEarned, 0, baseY, 1280, "center")
+
+    Font.set(14)
+    love.graphics.setColor(0.65, 0.65, 0.65)
+    local parts = {}
+    for _, bd in ipairs(self._pointsBreakdown or {}) do
+        if bd.value > 0 then
+            table.insert(parts, T(bd.label) .. " +" .. bd.value)
+        end
+    end
+    love.graphics.printf(table.concat(parts, "   "), 0, baseY + 28, 1280, "center")
+
+    -- 里程碑点数
+    if self._milestonePointsEarned and self._milestonePointsEarned > 0 then
+        love.graphics.setColor(0.5, 0.9, 0.8)
+        love.graphics.printf(T("milestone.points_earned"):format(self._milestonePointsEarned), 0, baseY + 52, 1280, "center")
+    end
+    Font.set(16)
 end
 
 -- 绘制按键提示

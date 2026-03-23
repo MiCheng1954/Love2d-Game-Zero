@@ -307,13 +307,13 @@ describe("SkillManager", function()
     -- ============================================================
     describe("角色专属技能 overload", function()
 
-        it("default 角色可以添加 overload", function()
-            player.characterId = "default"
+        it("engineer 角色可以添加 overload", function()
+            player.characterId = "engineer"
             local ok = sm:add("overload", player)
             assert.is_true(ok)
         end)
 
-        it("非 default 角色无法添加 overload", function()
+        it("非 engineer 角色无法添加 overload", function()
             player.characterId = "warrior"
             local ok = sm:add("overload", player)
             assert.is_false(ok)

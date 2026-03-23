@@ -22,6 +22,9 @@ local LegacySelect = require("src.states.legacySelect") -- Phase 10
 local TriggerUI    = require("src.ui.triggerUI")        -- Phase 11
 local SceneSelect  = require("src.states.sceneSelect")  -- Phase 12
 local SceneManager = require("src.systems.sceneManager") -- Phase 12
+local CharacterSelect = require("src.states.characterSelect") -- Phase 13
+local Progression     = require("src.states.progression")     -- Phase 13
+local Achievements    = require("src.states.achievements")    -- Phase 13
 local Plains       = require("src.scenes.plains")        -- Phase 12
 local Arena        = require("src.scenes.arena")         -- Phase 12
 
@@ -54,6 +57,10 @@ function love.load()
     StateManager.register("legacySelect",    LegacySelect)     -- Phase 10
     StateManager.register("triggerUI",       TriggerUI)        -- Phase 11
     StateManager.register("sceneSelect",     SceneSelect)      -- Phase 12
+
+    StateManager.register("characterSelect", CharacterSelect)  -- Phase 13
+    StateManager.register("progression",     Progression)      -- Phase 13
+    StateManager.register("achievements",    Achievements)     -- Phase 13
 
     -- 注册场景实例到 SceneManager（Phase 12）
     SceneManager.register("plains",  Plains.new())

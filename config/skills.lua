@@ -482,7 +482,7 @@ SkillConfig["overload"] = {
     maxLevel    = 3,
     levelBonus  = { duration = 1, cooldown = -3 },
     tag         = "爆发",
-    characterId = "default",   -- 仅 default 角色可获得
+    characterId = "engineer",   -- 仅工程师可获得（Phase 13：default → engineer）
     effect = function(player, level, ctx)
         local duration = 4 + (level - 1) * 1
         local bag = ctx and ctx.bag or (player._bag)

@@ -148,8 +148,10 @@ TEST_FILES = [
     "tests/systems/test_adjacency.lua",
     "tests/systems/test_synergy.lua",
     "tests/systems/test_fusion.lua",
-    "tests/systems/test_skillManager.lua",   # Phase 8
-    "tests/systems/test_buffManager.lua",    # Phase 10.1
+    "tests/systems/test_skillManager.lua",        # Phase 8
+    "tests/systems/test_buffManager.lua",         # Phase 10.1
+    "tests/systems/test_progressionManager.lua",  # Phase 13
+    "tests/systems/test_milestoneManager.lua",    # Phase 13
 ]
 
 total_pass = 0

@@ -18,6 +18,8 @@ local RhythmController = require("src.systems.rhythmController")  -- Phase 9
 local LegacyManager    = require("src.systems.legacyManager")      -- Phase 10
 local HUD              = require("src.ui.hud")                     -- Phase 11
 local SceneManager     = require("src.systems.sceneManager")       -- Phase 12
+local MilestoneManager   = require("src.systems.milestoneManager")
+local ProgressionManager = require("src.systems.progressionManager")
 local Player     = require("src.entities.player")
 local Projectile = require("src.entities.projectile")
 local Weapon     = require("src.entities.weapon")
@@ -55,6 +57,7 @@ local _paused = false              -- 游戏是否暂停
 -- Phase 10：统计数据
 local _killCount    = 0    -- 本局总击杀数
 local _killedBosses = {}   -- 本局击杀的 Boss 列表（id 字符串数组）
+local _milestoneManager = nil  -- Phase 13：里程碑追踪器
 
 -- 升级提示浮窗状态
 local _levelUpNotice = {
@@ -81,6 +84,12 @@ function Game:enter()
     -- Phase 10：统计数据重置
     _killCount    = 0
     _killedBosses = {}
+
+    -- Phase 13：初始化里程碑追踪器
+    local charId = _player and _player.characterId or "engineer"
+    _milestoneManager = MilestoneManager.new(charId)
+    -- 加载局外成长数据，将通用加成应用到玩家
+    ProgressionManager.load()
 
     -- 初始化玩家
     _player = Player.new(0, 0)
@@ -247,6 +256,15 @@ function Game:update(dt)
     -- Phase 11：更新 HUD 内部动画（低血量脉冲等）
     HUD.update(dt)
 
+    -- Phase 13：每帧 tick 里程碑通知（用于低血量存活等计时里程碑）
+    if _milestoneManager and _player and not _player:isDead() then
+        _milestoneManager:notify("tick", {
+            dt       = dt,
+            hpRatio  = _player.hp / _player.maxHp,
+            tookDamage = false,  -- 暂时固定 false，后续可接入受伤回调
+        })
+    end
+
     -- 更新升级提示倒计时
     if _levelUpNotice.active then
         _levelUpNotice.timer = _levelUpNotice.timer - dt
@@ -364,6 +382,10 @@ function Game:update(dt)
         sm:onKill(_player, killData.enemy, skillCtx)
         -- Phase 10：统计击杀数
         _killCount = _killCount + 1
+        -- Phase 13：通知里程碑
+        if _milestoneManager then
+            _milestoneManager:notify("enemy_killed", { count = _killCount })
+        end
     end
 
     -- Phase 9：子弹 vs Boss 碰撞检测
@@ -377,6 +399,10 @@ function Game:update(dt)
             Log.info("Boss 击败：" .. _boss._typeName .. "  isFinal=" .. tostring(_boss._isFinal))
             -- Phase 10：记录被击杀的 Boss
             table.insert(_killedBosses, _boss._typeName or _boss._bossName or "unknown")
+            -- Phase 13：Boss 击杀通知
+            if _milestoneManager then
+                _milestoneManager:notify("boss_killed", { bossId = _boss._typeName })
+            end
             -- Phase 12：冲锋者死亡分裂为 6 只 fast 小兵
             if _boss._typeName == "charger" then
                 local Enemy = require("src.entities.enemy")
@@ -460,6 +486,8 @@ function Game:update(dt)
             souls        = _player:getSouls(),
             activeSynergies = _player:getBag()._activeSynergies or {},
             killedBosses = _killedBosses,
+            milestoneManager = _milestoneManager,  -- Phase 13
+            sceneId          = SceneManager and SceneManager.current() or "plains",
         }
         -- Phase 10：检查复活次数
         if _player._revives and _player._revives > 0 then
@@ -525,6 +553,8 @@ function Game:update(dt)
                 souls        = _player:getSouls(),
                 activeSynergies = _player:getBag()._activeSynergies or {},
                 killedBosses = _killedBosses,
+                milestoneManager = _milestoneManager,  -- Phase 13
+                sceneId          = SceneManager and SceneManager.current() or "plains",
             })
             return   -- 切换状态后立即返回，避免访问已被 exit() 清空的状态
         end
@@ -599,6 +629,11 @@ function Game:update(dt)
                         onPlace   = function()
                             StateManager.pop()
                             if onDone then onDone() end
+                            -- Phase 13：武器放置通知
+                            if _milestoneManager then
+                                local bag = _player:getBag()
+                                _milestoneManager:notify("weapon_placed", { weaponCount = #bag:getAllWeapons() })
+                            end
                         end,
                         onDiscard = function()
                             StateManager.pop()
@@ -887,24 +922,40 @@ function Game:keypressed(key)
             if sm:tryActivate("skill1", _player, ctx, mergedCdReduce) then
                 local inst = sm:getSlot("skill1")
                 if inst then FX.spawn(inst.id, _player, ctx) end
+                -- Phase 13：技能激活通知
+                if _milestoneManager then
+                    _milestoneManager:notify("skill_activated", { skillId = "skill1" })
+                end
             end
         end
         if key == "q" then
             if sm:tryActivate("skill2", _player, ctx, mergedCdReduce) then
                 local inst = sm:getSlot("skill2")
                 if inst then FX.spawn(inst.id, _player, ctx) end
+                -- Phase 13：技能激活通知
+                if _milestoneManager then
+                    _milestoneManager:notify("skill_activated", { skillId = "skill2" })
+                end
             end
         end
         if key == "e" then
             if sm:tryActivate("skill3", _player, ctx, mergedCdReduce) then
                 local inst = sm:getSlot("skill3")
                 if inst then FX.spawn(inst.id, _player, ctx) end
+                -- Phase 13：技能激活通知
+                if _milestoneManager then
+                    _milestoneManager:notify("skill_activated", { skillId = "skill3" })
+                end
             end
         end
         if key == "f" then
             if sm:tryActivate("skill4", _player, ctx, mergedCdReduce) then
                 local inst = sm:getSlot("skill4")
                 if inst then FX.spawn(inst.id, _player, ctx) end
+                -- Phase 13：技能激活通知
+                if _milestoneManager then
+                    _milestoneManager:notify("skill_activated", { skillId = "skill4" })
+                end
             end
         end
     end

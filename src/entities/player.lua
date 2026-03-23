@@ -58,8 +58,8 @@ function Player.new(x, y)
     self.critDamage   = 1.5   -- 基础暴击倍率
     self.defense      = 0     -- 伤害减免比（0~1，Phase 8 新增）
 
-    -- 角色身份（Phase 8 角色专属技能过滤用）
-    self.characterId  = "default"
+    -- 角色身份（Phase 8 角色专属技能过滤用；Phase 13 由角色选择界面设置）
+    self.characterId  = "engineer"
 
     -- 移动状态
     self._dx          = 0     -- 当前帧水平移动方向

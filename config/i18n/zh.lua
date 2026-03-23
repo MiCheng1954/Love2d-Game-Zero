@@ -39,7 +39,7 @@ return {
 
     -- 菜单
     ["menu.title"]       = "ZERO",
-    ["menu.start"]       = "按 Enter 开始游戏",
+    ["menu.start"]       = "开始游戏",
 
     -- 结算
     ["gameover.title"]         = "GAME OVER",
@@ -387,6 +387,8 @@ return {
     ["menu.settings"]               = "设置",
     ["menu.exit"]                   = "退出游戏",
     ["menu.char_select_hint"]       = "角色选择（敬请期待）",
+    ["menu.progression"]            = "成长",
+    ["menu.achievements"]           = "成就",
     ["menu.version"]                = "版本 0.11",
 
     -- ============================================================
@@ -426,4 +428,117 @@ return {
     ["trigger.type.skill"]          = "技能获得",
     ["trigger.type.bag"]            = "背包扩展",
     ["trigger.type.soul"]           = "灵魂转换",
+
+    -- ============================================================
+    -- Phase 13：局外系统
+    -- ============================================================
+
+    -- 角色选择界面
+    ["char_select.title"]           = "◈  选择英雄  ◈",
+    ["char_select.hint"]            = "← → 切换   Enter 确认   ESC 返回",
+    ["char_select.stats"]           = "基础属性",
+    ["char_select.exclusive"]       = "专属技能",
+    ["char_select.affinity"]        = "擅长方向",
+
+    -- 工程师
+    ["char.engineer.name"]          = "工程师",
+    ["char.engineer.desc"]          = "精通武器改造的科技专家。超载技能让所有武器进入超频状态，射速翻倍。擅长堆叠武器数量，发挥科技羁绊潜力。",
+    -- 工程师技能树节点
+    ["char.engineer.node.overload_duration.name"]  = "超载延时",
+    ["char.engineer.node.overload_duration.desc"]  = "超载持续时间 +1 秒",
+    ["char.engineer.node.overload_shield.name"]    = "超载护盾",
+    ["char.engineer.node.overload_shield.desc"]    = "超载激活时自动触发魔法护盾",
+    ["char.engineer.node.overload_cooldown.name"]  = "高效制冷",
+    ["char.engineer.node.overload_cooldown.desc"]  = "超载冷却时间缩短 30%",
+    ["char.engineer.node.weapon_slots.name"]       = "扩容背包",
+    ["char.engineer.node.weapon_slots.desc"]       = "初始背包额外增加 1 行格子",
+    ["char.engineer.node.weapon_adj.name"]         = "精密布线",
+    ["char.engineer.node.weapon_adj.desc"]         = "武器相邻增益效果 +25%",
+    -- 工程师里程碑
+    ["char.engineer.ms.overload_10.name"]          = "超频达人",
+    ["char.engineer.ms.overload_10.desc"]          = "单局触发超载 10 次",
+    ["char.engineer.ms.weapons_6.name"]            = "武器收藏家",
+    ["char.engineer.ms.weapons_6.desc"]            = "同时拥有 6 把不同武器",
+    ["char.engineer.ms.survive_20min.name"]        = "持久战争",
+    ["char.engineer.ms.survive_20min.desc"]        = "单局存活 20 分钟",
+
+    -- 狂战士
+    ["char.berserker.name"]         = "狂战士",
+    ["char.berserker.desc"]         = "以血换伤的近身爆发者。生命值越低，攻击力越强。战吼让自身进入狂暴状态，高风险高回报的战斗风格。",
+    -- 狂战士技能树节点
+    ["char.berserker.node.bloodrage_1.name"]       = "血怒 I",
+    ["char.berserker.node.bloodrage_1.desc"]       = "HP 低于 50% 时攻击力 +15%",
+    ["char.berserker.node.bloodrage_2.name"]       = "血怒 II",
+    ["char.berserker.node.bloodrage_2.desc"]       = "HP 低于 30% 时攻击力额外 +30%",
+    ["char.berserker.node.last_stand.name"]        = "最后的意志",
+    ["char.berserker.node.last_stand.desc"]        = "致命伤害时触发 1 秒无敌（每局 1 次）",
+    ["char.berserker.node.dash_dmg.name"]          = "冲刺穿刺",
+    ["char.berserker.node.dash_dmg.desc"]          = "冲刺经过的敌人受到 30 点伤害",
+    ["char.berserker.node.dash_cd.name"]           = "疾冲",
+    ["char.berserker.node.dash_cd.desc"]           = "冲刺冷却时间缩短 30%",
+    -- 狂战士里程碑
+    ["char.berserker.ms.kill_500.name"]            = "杀戮机器",
+    ["char.berserker.ms.kill_500.desc"]            = "单局击杀 500 个敌人",
+    ["char.berserker.ms.low_hp_survive.name"]      = "濒死求生",
+    ["char.berserker.ms.low_hp_survive.desc"]      = "在 HP 低于 30% 的状态下累计存活 5 分钟",
+    ["char.berserker.ms.kill_boss.name"]           = "以弱胜强",
+    ["char.berserker.ms.kill_boss.desc"]           = "击败任意一个 Boss",
+
+    -- 幽灵
+    ["char.phantom.name"]           = "幽灵",
+    ["char.phantom.desc"]           = "来无影去无踪的速度刺客。超高移速配合闪现，几乎无法被敌人捕捉。擅长利用减速领域控制战场节奏。",
+    -- 幽灵技能树节点
+    ["char.phantom.node.blink_range.name"]         = "瞬移强化",
+    ["char.phantom.node.blink_range.desc"]         = "闪现距离 +30%",
+    ["char.phantom.node.blink_atk.name"]           = "残影突袭",
+    ["char.phantom.node.blink_atk.desc"]           = "闪现后 2 秒内攻击速度 +50%",
+    ["char.phantom.node.blink_cd.name"]            = "虚空步",
+    ["char.phantom.node.blink_cd.desc"]            = "闪现冷却时间缩短 40%",
+    ["char.phantom.node.slow_range.name"]          = "时空裂缝",
+    ["char.phantom.node.slow_range.desc"]          = "时间减缓范围 +40%",
+    ["char.phantom.node.slow_rate.name"]           = "深度冻结",
+    ["char.phantom.node.slow_rate.desc"]           = "时间减缓效果加深（减速倍率提升）",
+    -- 幽灵里程碑
+    ["char.phantom.ms.blink_20.name"]              = "幻影连闪",
+    ["char.phantom.ms.blink_20.desc"]              = "单局使用闪现 20 次",
+    ["char.phantom.ms.arena_survive.name"]         = "竞技场幽灵",
+    ["char.phantom.ms.arena_survive.desc"]         = "在封闭竞技场存活 15 分钟",
+    ["char.phantom.ms.no_damage_1min.name"]        = "无懈可击",
+    ["char.phantom.ms.no_damage_1min.desc"]        = "连续 60 秒不受到任何伤害",
+
+    -- 局外成长界面
+    ["progression.title"]               = "◈  局外成长  ◈",
+    ["progression.tab.common"]          = "通用加成",
+    ["progression.tab.tree"]            = "英雄技能树",
+    ["progression.hint"]                = "Q/E 切换面板   ↑↓ 选择   Enter 解锁   ESC 返回",
+    ["progression.points"]              = "成长点数：%d",
+    ["progression.unlock"]              = "解锁（消耗 %d 点）",
+    ["progression.unlocked"]            = "✓ 已解锁",
+    ["progression.locked"]              = "🔒 需先解锁前置",
+    ["progression.insufficient"]        = "点数不足",
+    ["progression.common.attack"]       = "攻击力 +%d%%",
+    ["progression.common.speed"]        = "移速 +%d%%",
+    ["progression.common.maxhp"]        = "最大HP +%d",
+    ["progression.common.critrate"]     = "暴击率 +%d%%",
+    ["progression.common.pickup"]       = "拾取范围 +%d%%",
+    ["progression.common.expmult"]      = "经验获取 +%d%%",
+
+    -- 里程碑
+    ["milestone.title"]                 = "里程碑",
+    ["milestone.progress"]              = "%d / %d",
+    ["milestone.completed"]             = "✓ 已完成  +%d 点",
+    ["milestone.points_earned"]         = "获得里程碑点数：+%d",
+
+    -- 成就界面
+    ["achievements.title"]              = "◈  成就  ◈",
+    ["achievements.hint"]               = "↑↓ 移动   ESC 返回",
+    ["achievements.unlocked"]           = "已解锁",
+    ["achievements.locked"]             = "未解锁",
+    ["achievements.empty"]              = "暂无成就数据",
+
+    -- 结算：成长点数
+    ["gameover.points_earned"]          = "获得成长点数",
+    ["gameover.points_kill"]            = "击杀奖励",
+    ["gameover.points_survive"]         = "存活奖励",
+    ["gameover.points_boss"]            = "Boss 击败奖励",
 }
