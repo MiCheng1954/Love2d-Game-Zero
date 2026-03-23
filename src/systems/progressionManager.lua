@@ -39,6 +39,7 @@ local function makeDefault()
             berserker = { milestonePoints = 0, unlockedNodes = {} },
             phantom   = { milestonePoints = 0, unlockedNodes = {} },
         },
+        treeNodes = {},   -- 通用机制树已解锁节点ID列表（所有角色共用）
     }
 end
 
@@ -272,6 +273,7 @@ function ProgressionManager.load()
             if type(decoded.commonPoints) ~= "number" then decoded.commonPoints = 0 end
             if type(decoded.commonLevels) ~= "table" then decoded.commonLevels = {} end
             if type(decoded.characters) ~= "table" then decoded.characters = {} end
+            if type(decoded.treeNodes) ~= "table" then decoded.treeNodes = {} end
             -- 补齐每个通用属性
             for attr, _ in pairs(COMMON_ATTRS) do
                 if type(decoded.commonLevels[attr]) ~= "number" then
@@ -470,6 +472,72 @@ function ProgressionManager.getUnlockedNodes(charId)
     -- 返回副本，防止外部直接修改内部数据
     local result = {}
     for _, id in ipairs(_data.characters[charId].unlockedNodes) do
+        result[#result + 1] = id
+    end
+    return result
+end
+
+-- ============================================================
+-- 13. isTreeNodeUnlocked
+-- ============================================================
+function ProgressionManager.isTreeNodeUnlocked(nodeId)
+    if not _data then ProgressionManager.load() end
+    local nodes = _data.treeNodes
+    for _, id in ipairs(nodes) do
+        if id == nodeId then return true end
+    end
+    return false
+end
+
+-- ============================================================
+-- 14. unlockTreeNode
+-- ============================================================
+function ProgressionManager.unlockTreeNode(nodeId)
+    if not _data then ProgressionManager.load() end
+
+    if ProgressionManager.isTreeNodeUnlocked(nodeId) then
+        return false
+    end
+
+    local ProgressionTreeConfig = require("config.progressionTree")
+    local nodeDef = nil
+    for _, node in ipairs(ProgressionTreeConfig) do
+        if node.id == nodeId then
+            nodeDef = node
+            break
+        end
+    end
+    if not nodeDef then return false end
+
+    -- 检查前置节点是否全部解锁
+    if nodeDef.requires then
+        for _, reqId in ipairs(nodeDef.requires) do
+            if not ProgressionManager.isTreeNodeUnlocked(reqId) then
+                return false
+            end
+        end
+    end
+
+    -- 检查通用点数是否足够
+    local pts = _data.commonPoints or 0
+    if pts < (nodeDef.cost or 0) then
+        return false
+    end
+
+    _data.commonPoints = pts - nodeDef.cost
+    local nodes = _data.treeNodes
+    nodes[#nodes + 1] = nodeId
+    ProgressionManager.save()
+    return true
+end
+
+-- ============================================================
+-- 15. getUnlockedTreeNodes
+-- ============================================================
+function ProgressionManager.getUnlockedTreeNodes()
+    if not _data then ProgressionManager.load() end
+    local result = {}
+    for _, id in ipairs(_data.treeNodes) do
         result[#result + 1] = id
     end
     return result

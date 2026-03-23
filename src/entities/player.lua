@@ -85,6 +85,54 @@ function Player.new(x, y)
     -- Phase 10：应用上局传承效果（若有）
     LegacyManager.applyToPlayer(self)
 
+    -- Phase 13：应用局外成长（通用加成 + 已解锁技能树节点）
+    local ProgressionManager = require("src.systems.progressionManager")
+    local CharacterConfig    = require("config.characters")
+    ProgressionManager.load()
+
+    -- 1) 通用属性加成（attack / speed / maxhp / critrate / pickup / expmult）
+    local bonus = ProgressionManager.getCommonBonus()
+    if bonus.attack   and bonus.attack   > 0 then self.attack  = self.attack  * (1 + bonus.attack   / 100) end
+    if bonus.maxhp    and bonus.maxhp    > 0 then self.maxHp   = self.maxHp   + bonus.maxhp  ; self.hp = self.hp + bonus.maxhp end
+    if bonus.speed    and bonus.speed    > 0 then self.speed   = self.speed   * (1 + bonus.speed    / 100) end
+    if bonus.critrate and bonus.critrate > 0 then self.critRate = self.critRate + bonus.critrate / 100 end
+    -- pickup / expmult 由 game.lua 通过 mergedPsb 读取，此处记录到专属字段供后续使用
+    self._progressionPickupBonus = bonus.pickup  or 0   -- 拾取范围百分比加成（0~30）
+    self._progressionExpBonus    = bonus.expmult or 0   -- 经验获取百分比加成（0~30）
+
+    -- 2) 角色专属技能树节点效果
+    local charCfg = CharacterConfig[self.characterId]
+    if charCfg and charCfg.skillTree then
+        local unlockedNodes = ProgressionManager.getUnlockedNodes(self.characterId)
+        -- 建立 id→node 映射，保证按 skillTree 定义顺序应用
+        local nodeMap = {}
+        for _, node in ipairs(charCfg.skillTree) do
+            nodeMap[node.id] = node
+        end
+        for _, nodeId in ipairs(unlockedNodes) do
+            local node = nodeMap[nodeId]
+            if node and node.effect then
+                node.effect(self)
+            end
+        end
+    end
+
+    -- 3) 通用机制树节点效果（所有角色共用，pcall 保护防止配置文件缺失时崩溃）
+    local ok, ProgressionTreeConfig = pcall(require, "config.progressionTree")
+    if ok and ProgressionTreeConfig then
+        local unlockedTreeNodes = ProgressionManager.getUnlockedTreeNodes()
+        local treeNodeMap = {}
+        for _, node in ipairs(ProgressionTreeConfig) do
+            treeNodeMap[node.id] = node
+        end
+        for _, nodeId in ipairs(unlockedTreeNodes) do
+            local node = treeNodeMap[nodeId]
+            if node and node.effect then
+                node.effect(self)
+            end
+        end
+    end
+
     return self
 end
 

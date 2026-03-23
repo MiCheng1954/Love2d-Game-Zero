@@ -2,7 +2,7 @@
     src/states/progression.lua
     局外成长界面 — Phase 13
     push/pop 覆盖层，两个面板：
-      · 通用加成（6 个属性，消耗通用点数升级）
+      · 通用加成（左：6 属性升级列表 + 右：通用机制树星形扩散图）
       · 英雄技能树（按 trunk A/B 分列，消耗里程碑点数解锁）
 ]]
 
@@ -10,6 +10,10 @@ local Input              = require("src.systems.input")
 local Font               = require("src.utils.font")
 local ProgressionManager = require("src.systems.progressionManager")
 local CharacterConfig    = require("config.characters")
+
+-- 安全加载通用机制树配置（文件缺失时不崩溃）
+local _treeConfigOk, ProgressionTreeConfig = pcall(require, "config.progressionTree")
+if not _treeConfigOk then ProgressionTreeConfig = {} end
 
 local Progression = {}
 
@@ -23,6 +27,10 @@ local SCREEN_H = 720
 local TAB_COMMON = "common"
 local TAB_TREE   = "tree"
 
+-- Tab 1 焦点枚举：左侧属性列表 / 右侧机制树
+local FOCUS_LIST = "list"
+local FOCUS_GRAPH = "graph"
+
 -- 通用属性列表（固定顺序，与 progressionManager 中的 COMMON_ATTRS 对应）
 local COMMON_ATTR_ORDER = {
     { id = "attack",   nameKey = "progression.attr.attack",   fmtKey = "progression.common.attack"  },
@@ -33,7 +41,7 @@ local COMMON_ATTR_ORDER = {
     { id = "expmult",  nameKey = "progression.attr.expmult",  fmtKey = "progression.common.expmult" },
 }
 
--- 通用属性名称（直接硬编码，因 i18n 目前未注册 progression.attr.* key，此处作备用）
+-- 通用属性名称
 local ATTR_NAMES = {
     attack   = "攻击力",
     speed    = "移速",
@@ -43,7 +51,7 @@ local ATTR_NAMES = {
     expmult  = "经验获取",
 }
 
--- 通用属性最大等级与每级费用（与 progressionManager.lua 中 COMMON_ATTRS 保持同步）
+-- 通用属性最大等级与每级费用
 local COMMON_ATTR_DEFS = {
     attack   = { maxLevel = 5, costPerLevel = 10, bonusPerLevel = 5  },
     speed    = { maxLevel = 5, costPerLevel = 8,  bonusPerLevel = 5  },
@@ -52,6 +60,31 @@ local COMMON_ATTR_DEFS = {
     pickup   = { maxLevel = 3, costPerLevel = 8,  bonusPerLevel = 10 },
     expmult  = { maxLevel = 3, costPerLevel = 12, bonusPerLevel = 10 },
 }
+
+-- 通用机制树：5维度定义（顺序决定扩散方向）
+local TREE_DIMS = {
+    { id = "attack",  label = "攻击",    color = {1.0, 0.4, 0.3},  angle = -math.pi/2           },  -- 上
+    { id = "survive", label = "生存",    color = {0.3, 0.9, 0.4},  angle = -math.pi/2 + math.pi*2/5 },  -- 右上
+    { id = "weapon",  label = "武器",    color = {0.4, 0.7, 1.0},  angle = -math.pi/2 + math.pi*4/5 },  -- 右下
+    { id = "economy", label = "经济",    color = {1.0, 0.85, 0.2}, angle = -math.pi/2 + math.pi*6/5 },  -- 左下
+    { id = "skill",   label = "技能",    color = {0.8, 0.4, 1.0},  angle = -math.pi/2 + math.pi*8/5 },  -- 左上
+}
+
+-- 机制树节点在各维度内排好（按 layer 排序）
+local _treeNodesByDim = {}  -- dim → {layer1_node, layer2_node, layer3_node}
+
+local function _buildTreeNodesByDim()
+    _treeNodesByDim = {}
+    for _, dim in ipairs(TREE_DIMS) do
+        _treeNodesByDim[dim.id] = {}
+    end
+    for _, node in ipairs(ProgressionTreeConfig) do
+        if _treeNodesByDim[node.dim] then
+            _treeNodesByDim[node.dim][node.layer] = node
+        end
+    end
+end
+_buildTreeNodesByDim()
 
 -- 通知消息显示时长（秒）
 local NOTICE_DURATION = 1.8
@@ -65,8 +98,18 @@ local PANEL_W     = SCREEN_W - 120
 local PANEL_H     = SCREEN_H - 180
 local ROW_H       = 52
 local LIST_W      = 420     -- 通用加成列表宽
-local DETAIL_X    = PANEL_X + LIST_W + 40  -- 右侧说明起始 X
-local DETAIL_W    = PANEL_W - LIST_W - 40
+
+-- 机制树扩散图区域（Tab 1 右半屏）
+local GRAPH_X     = PANEL_X + LIST_W + 30
+local GRAPH_Y     = PANEL_Y
+local GRAPH_W     = PANEL_W - LIST_W - 30
+local GRAPH_H     = PANEL_H
+local GRAPH_CX    = GRAPH_X + GRAPH_W / 2   -- 扩散图中心 X
+local GRAPH_CY    = GRAPH_Y + GRAPH_H / 2   -- 扩散图中心 Y
+local NODE_R1     = 70    -- 第1层节点距中心距离
+local NODE_R2     = 130   -- 第2层
+local NODE_R3     = 190   -- 第3层
+local NODE_SIZE   = 22    -- 节点圆半径
 
 -- 技能树列宽
 local TREE_COL_W  = (PANEL_W - 40) / 2
@@ -86,6 +129,12 @@ function Progression:enter(data)
     self._treeIdx    = 1   -- 技能树面板当前选中节点（在 _flatNodes 中的下标）
     self._noticeText = nil
     self._noticeTimer = 0
+
+    -- Tab 1 焦点：list（左侧属性列表） / graph（右侧机制树）
+    self._commonFocus  = FOCUS_LIST
+    -- 机制树当前选中节点：{ dimIdx = 1~5, layer = 1~3 }
+    self._graphDimIdx  = 1
+    self._graphLayer   = 1
 
     -- 构建技能树扁平节点列表（A 列先、B 列后，整体按 trunk+顺序）
     self._flatNodes = self:_buildFlatNodes()
@@ -168,23 +217,71 @@ end
 
 --- 通用加成面板输入处理
 function Progression:_updateCommon()
-    local n = #COMMON_ATTR_ORDER
-    if Input.isPressed("moveUp") then
-        self._commonIdx = math.max(1, self._commonIdx - 1)
-    elseif Input.isPressed("moveDown") then
-        self._commonIdx = math.min(n, self._commonIdx + 1)
-    elseif Input.isPressed("confirm") then
-        local attr = COMMON_ATTR_ORDER[self._commonIdx].id
-        local ok = ProgressionManager.upgradeCommon(attr)
-        if ok then
-            self:_showNotice("✓ 升级成功！")
-        else
-            local def = COMMON_ATTR_DEFS[attr]
-            local lv  = ProgressionManager.getCommonLevel(attr)
-            if lv >= def.maxLevel then
-                self:_showNotice("已达最大等级")
+    -- ← → 切换左右焦点
+    if Input.isPressed("moveLeft") then
+        self._commonFocus = FOCUS_LIST
+    elseif Input.isPressed("moveRight") then
+        self._commonFocus = FOCUS_GRAPH
+    end
+
+    if self._commonFocus == FOCUS_LIST then
+        -- 左侧：上下选择属性，Enter 升级
+        local n = #COMMON_ATTR_ORDER
+        if Input.isPressed("moveUp") then
+            self._commonIdx = math.max(1, self._commonIdx - 1)
+        elseif Input.isPressed("moveDown") then
+            self._commonIdx = math.min(n, self._commonIdx + 1)
+        elseif Input.isPressed("confirm") then
+            local attr = COMMON_ATTR_ORDER[self._commonIdx].id
+            local ok = ProgressionManager.upgradeCommon(attr)
+            if ok then
+                self:_showNotice("✓ 升级成功！")
             else
-                self:_showNotice(T("progression.insufficient"))
+                local def = COMMON_ATTR_DEFS[attr]
+                local lv  = ProgressionManager.getCommonLevel(attr)
+                if lv >= def.maxLevel then
+                    self:_showNotice("已达最大等级")
+                else
+                    self:_showNotice(T("progression.insufficient"))
+                end
+            end
+        end
+    else
+        -- 右侧（机制树图）：上下换维度，左右换层级
+        local dimCount = #TREE_DIMS
+        if Input.isPressed("moveUp") then
+            self._graphDimIdx = self._graphDimIdx - 1
+            if self._graphDimIdx < 1 then self._graphDimIdx = dimCount end
+        elseif Input.isPressed("moveDown") then
+            self._graphDimIdx = self._graphDimIdx % dimCount + 1
+        end
+        -- 机制树内 Left/Right 调整层（但 Left 切回列表已处理，这里只处理向右往深层）
+        -- 实际用 confirm(Enter) 解锁即可，上下在维度间切换已足够
+        if Input.isPressed("confirm") then
+            -- 尝试按层序解锁当前维度的最浅未解锁节点
+            local dim = TREE_DIMS[self._graphDimIdx]
+            local nodes = _treeNodesByDim[dim.id] or {}
+            local unlocked = false
+            for layer = 1, 3 do
+                local node = nodes[layer]
+                if node and not ProgressionManager.isTreeNodeUnlocked(node.id) then
+                    local ok = ProgressionManager.unlockTreeNode(node.id)
+                    if ok then
+                        self:_showNotice("✓ " .. T(node.nameKey) .. " 已解锁！")
+                    else
+                        local pts = ProgressionManager.getCommonPoints()
+                        if pts < (node.cost or 0) then
+                            self:_showNotice(T("progression.insufficient"))
+                        else
+                            self:_showNotice(T("progression.locked"))
+                        end
+                    end
+                    unlocked = true
+                    break
+                end
+            end
+            if not unlocked then
+                self:_showNotice("该维度已全部解锁！")
             end
         end
     end
@@ -326,6 +423,9 @@ function Progression:_drawCommonPanel()
         string.format(T("progression.points"), pts),
         PANEL_X, PANEL_Y - 4, PANEL_W, "left")
 
+    -- === 左侧：属性升级列表 ===
+    local listFocused = (self._commonFocus == FOCUS_LIST)
+
     -- 列表标题栏
     local headerY = PANEL_Y + 26
     Font.set(13)
@@ -333,7 +433,15 @@ function Progression:_drawCommonPanel()
     love.graphics.print("属性",       PANEL_X + 16,         headerY)
     love.graphics.print("等级",       PANEL_X + 170,        headerY)
     love.graphics.print("当前加成",   PANEL_X + 240,        headerY)
-    love.graphics.print("升级费用",   PANEL_X + 340,        headerY)
+    love.graphics.print("费用",       PANEL_X + 340,        headerY)
+
+    -- 列表焦点框
+    if listFocused then
+        love.graphics.setColor(0.3, 0.55, 1.0, 0.4)
+    else
+        love.graphics.setColor(0.3, 0.3, 0.4, 0.25)
+    end
+    love.graphics.rectangle("line", PANEL_X - 2, PANEL_Y + 20, LIST_W + 4, PANEL_H - 20, 4, 4)
 
     -- 分隔线
     love.graphics.setColor(0.25, 0.25, 0.3)
@@ -343,7 +451,7 @@ function Progression:_drawCommonPanel()
     local listStartY = headerY + 26
     for i, attr in ipairs(COMMON_ATTR_ORDER) do
         local ry       = listStartY + (i - 1) * ROW_H
-        local selected = (i == self._commonIdx)
+        local selected = listFocused and (i == self._commonIdx)
         local def      = COMMON_ATTR_DEFS[attr.id]
         local lv       = ProgressionManager.getCommonLevel(attr.id)
         local bonus    = lv * def.bonusPerLevel
@@ -401,12 +509,17 @@ function Progression:_drawCommonPanel()
         else
             local costColor = (pts >= def.costPerLevel) and {0.9, 0.85, 0.3} or {0.8, 0.3, 0.3}
             love.graphics.setColor(costColor)
-            love.graphics.print(tostring(def.costPerLevel) .. " 点", PANEL_X + 340, ry + 10)
+            love.graphics.print(tostring(def.costPerLevel), PANEL_X + 340, ry + 10)
         end
     end
 
-    -- 右侧详情说明（选中属性的展开说明）
-    self:_drawCommonDetail()
+    -- 左右切换提示
+    Font.set(12)
+    love.graphics.setColor(0.4, 0.4, 0.5)
+    love.graphics.print("← / → 切换区域", PANEL_X + 4, PANEL_Y + PANEL_H - 20)
+
+    -- === 右侧：通用机制树星形扩散图 ===
+    self:_drawGraphPanel(pts)
 end
 
 --- 格式化通用加成显示值
@@ -422,83 +535,197 @@ function Progression:_formatBonus(attrId, bonus)
     return string.format("+%d", bonus)
 end
 
---- 绘制右侧说明框
-function Progression:_drawCommonDetail()
-    local attr     = COMMON_ATTR_ORDER[self._commonIdx]
-    local def      = COMMON_ATTR_DEFS[attr.id]
-    local lv       = ProgressionManager.getCommonLevel(attr.id)
+-- ============================================================
+-- 绘制：通用机制树星形扩散图
+-- ============================================================
+function Progression:_drawGraphPanel(pts)
+    local graphFocused = (self._commonFocus == FOCUS_GRAPH)
 
-    local bx = DETAIL_X
-    local by = PANEL_Y + 22
-    local bw = DETAIL_W
-    local bh = 220
+    -- 区域背景
+    if graphFocused then
+        love.graphics.setColor(0.08, 0.1, 0.18, 0.92)
+    else
+        love.graphics.setColor(0.06, 0.07, 0.12, 0.88)
+    end
+    love.graphics.rectangle("fill", GRAPH_X, GRAPH_Y, GRAPH_W, GRAPH_H, 8, 8)
 
-    -- 外框
-    love.graphics.setColor(0.12, 0.14, 0.2, 0.9)
-    love.graphics.rectangle("fill", bx, by, bw, bh, 8, 8)
-    love.graphics.setColor(0.25, 0.4, 0.7, 0.7)
-    love.graphics.rectangle("line", bx, by, bw, bh, 8, 8)
+    -- 区域边框
+    if graphFocused then
+        love.graphics.setColor(0.4, 0.6, 1.0, 0.6)
+    else
+        love.graphics.setColor(0.25, 0.25, 0.35, 0.4)
+    end
+    love.graphics.rectangle("line", GRAPH_X, GRAPH_Y, GRAPH_W, GRAPH_H, 8, 8)
 
-    -- 属性名
-    Font.set(20)
-    love.graphics.setColor(1.0, 0.9, 0.5)
-    love.graphics.printf(ATTR_NAMES[attr.id], bx + 16, by + 16, bw - 32, "left")
-
-    -- 等级进度条
+    -- 标题
     Font.set(14)
-    love.graphics.setColor(0.65, 0.65, 0.7)
-    love.graphics.print(string.format("当前等级：%d / %d", lv, def.maxLevel), bx + 16, by + 52)
+    love.graphics.setColor(0.7, 0.7, 0.8)
+    love.graphics.printf("通用机制树", GRAPH_X, GRAPH_Y + 8, GRAPH_W, "center")
 
-    -- 进度条背景
-    local barX = bx + 16
-    local barY = by + 74
-    local barW = bw - 32
-    local barH = 10
-    love.graphics.setColor(0.2, 0.2, 0.25)
-    love.graphics.rectangle("fill", barX, barY, barW, barH, 4, 4)
-    -- 进度填充
-    local ratio = lv / def.maxLevel
-    if ratio > 0 then
-        love.graphics.setColor(0.3, 0.6, 1.0)
-        love.graphics.rectangle("fill", barX, barY, barW * ratio, barH, 4, 4)
+    -- 中心点（黄色六芒星形心脏）
+    love.graphics.setColor(0.9, 0.8, 0.3, 0.9)
+    love.graphics.circle("fill", GRAPH_CX, GRAPH_CY, 10)
+    love.graphics.setColor(1.0, 0.95, 0.5)
+    love.graphics.circle("line", GRAPH_CX, GRAPH_CY, 10)
+
+    -- 辅助放射线（从中心到第3层末端，淡色）
+    for _, dim in ipairs(TREE_DIMS) do
+        local ex = GRAPH_CX + math.cos(dim.angle) * (NODE_R3 + NODE_SIZE + 8)
+        local ey = GRAPH_CY + math.sin(dim.angle) * (NODE_R3 + NODE_SIZE + 8)
+        love.graphics.setColor(dim.color[1], dim.color[2], dim.color[3], 0.12)
+        love.graphics.line(GRAPH_CX, GRAPH_CY, ex, ey)
     end
 
-    -- 当前加成
-    local bonus = lv * def.bonusPerLevel
-    Font.set(15)
-    love.graphics.setColor(0.6, 0.9, 0.7)
-    love.graphics.print("当前加成：" .. self:_formatBonus(attr.id, bonus), bx + 16, by + 94)
+    -- 各维度圆弧参考圈（同层节点连线，非常淡）
+    for _, radius in ipairs({ NODE_R1, NODE_R2, NODE_R3 }) do
+        love.graphics.setColor(0.25, 0.25, 0.35, 0.2)
+        love.graphics.circle("line", GRAPH_CX, GRAPH_CY, radius)
+    end
 
-    -- 下一级加成（若未满级）
-    if lv < def.maxLevel then
-        local nextBonus = (lv + 1) * def.bonusPerLevel
-        love.graphics.setColor(0.85, 0.85, 0.5)
-        love.graphics.print("升级后：" .. self:_formatBonus(attr.id, nextBonus), bx + 16, by + 118)
+    -- 绘制各维度节点（从外到内，避免遮挡）
+    for dimI, dim in ipairs(TREE_DIMS) do
+        local nodes = _treeNodesByDim[dim.id] or {}
+        local isSelectedDim = graphFocused and (dimI == self._graphDimIdx)
 
-        -- 费用
-        local pts = ProgressionManager.getCommonPoints()
-        local affordable = (pts >= def.costPerLevel)
-        if affordable then
-            love.graphics.setColor(0.3, 0.9, 0.4)
-        else
-            love.graphics.setColor(0.9, 0.3, 0.3)
+        for layer = 3, 1, -1 do
+            local node = nodes[layer]
+            if not node then goto continue end
+
+            local radius = layer == 1 and NODE_R1 or (layer == 2 and NODE_R2 or NODE_R3)
+            local nx = GRAPH_CX + math.cos(dim.angle) * radius
+            local ny = GRAPH_CY + math.sin(dim.angle) * radius
+
+            local unlocked  = ProgressionManager.isTreeNodeUnlocked(node.id)
+            -- 检查前置
+            local prevOk = true
+            for _, reqId in ipairs(node.requires or {}) do
+                if not ProgressionManager.isTreeNodeUnlocked(reqId) then
+                    prevOk = false; break
+                end
+            end
+            local affordable = (pts >= (node.cost or 0))
+            local canUnlock  = prevOk and not unlocked
+
+            -- 节点连线到前一层
+            if layer > 1 then
+                local prevRadius = layer == 2 and NODE_R1 or NODE_R2
+                local px = GRAPH_CX + math.cos(dim.angle) * prevRadius
+                local py = GRAPH_CY + math.sin(dim.angle) * prevRadius
+                if unlocked then
+                    love.graphics.setColor(dim.color[1], dim.color[2], dim.color[3], 0.7)
+                elseif prevOk then
+                    love.graphics.setColor(dim.color[1]*0.6, dim.color[2]*0.6, dim.color[3]*0.6, 0.4)
+                else
+                    love.graphics.setColor(0.25, 0.25, 0.3, 0.3)
+                end
+                love.graphics.line(nx, ny, px, py)
+            end
+
+            -- 节点圆
+            local r = isSelectedDim and (NODE_SIZE + 3) or NODE_SIZE
+            if unlocked then
+                love.graphics.setColor(dim.color[1]*0.5, dim.color[2]*0.5, dim.color[3]*0.5, 1.0)
+                love.graphics.circle("fill", nx, ny, r)
+                love.graphics.setColor(dim.color)
+                love.graphics.circle("line", nx, ny, r)
+                love.graphics.setLineWidth(2)
+                love.graphics.circle("line", nx, ny, r)
+                love.graphics.setLineWidth(1)
+            elseif canUnlock and affordable then
+                love.graphics.setColor(dim.color[1]*0.2, dim.color[2]*0.2, dim.color[3]*0.2, 0.9)
+                love.graphics.circle("fill", nx, ny, r)
+                love.graphics.setColor(dim.color)
+                love.graphics.circle("line", nx, ny, r)
+            elseif canUnlock then
+                love.graphics.setColor(0.12, 0.12, 0.16, 0.9)
+                love.graphics.circle("fill", nx, ny, r)
+                love.graphics.setColor(0.5, 0.5, 0.55)
+                love.graphics.circle("line", nx, ny, r)
+            else
+                love.graphics.setColor(0.08, 0.08, 0.1, 0.85)
+                love.graphics.circle("fill", nx, ny, r)
+                love.graphics.setColor(0.28, 0.28, 0.32)
+                love.graphics.circle("line", nx, ny, r)
+            end
+
+            -- 层级数字
+            Font.set(11)
+            if unlocked then
+                love.graphics.setColor(1.0, 1.0, 1.0)
+                love.graphics.printf(tostring(layer), nx - r, ny - 7, r * 2, "center")
+            elseif canUnlock and affordable then
+                love.graphics.setColor(dim.color)
+                love.graphics.printf(tostring(layer), nx - r, ny - 7, r * 2, "center")
+            else
+                love.graphics.setColor(0.4, 0.4, 0.45)
+                love.graphics.printf(tostring(layer), nx - r, ny - 7, r * 2, "center")
+            end
+
+            -- 选中维度高亮光晕
+            if isSelectedDim then
+                love.graphics.setColor(dim.color[1], dim.color[2], dim.color[3], 0.25)
+                love.graphics.circle("line", nx, ny, r + 5)
+                love.graphics.circle("line", nx, ny, r + 8)
+            end
+
+            ::continue::
         end
-        love.graphics.print(
-            string.format("费用：%d 点（当前：%d 点）", def.costPerLevel, pts),
-            bx + 16, by + 142)
 
-        Font.set(14)
-        if affordable then
-            love.graphics.setColor(0.4, 0.8, 0.4)
-            love.graphics.printf("[ Enter 升级 ]", bx, by + 170, bw, "center")
+        -- 维度标签（在第3层末端外侧）
+        local labelR = NODE_R3 + NODE_SIZE + 20
+        local lx = GRAPH_CX + math.cos(dim.angle) * labelR
+        local ly = GRAPH_CY + math.sin(dim.angle) * labelR
+        Font.set(12)
+        if graphFocused and dimI == self._graphDimIdx then
+            love.graphics.setColor(dim.color)
         else
-            love.graphics.setColor(0.6, 0.3, 0.3)
-            love.graphics.printf("点数不足，无法升级", bx, by + 170, bw, "center")
+            love.graphics.setColor(dim.color[1]*0.7, dim.color[2]*0.7, dim.color[3]*0.7)
         end
-    else
-        Font.set(15)
-        love.graphics.setColor(1.0, 0.75, 0.2)
-        love.graphics.printf("★ 已达最大等级", bx, by + 130, bw, "center")
+        love.graphics.printf(dim.label, lx - 28, ly - 9, 56, "center")
+    end
+
+    -- 当前焦点维度说明（底部信息栏）
+    if graphFocused then
+        local dim    = TREE_DIMS[self._graphDimIdx]
+        local nodes  = _treeNodesByDim[dim.id] or {}
+
+        -- 找当前维度最浅未解锁节点
+        local targetNode = nil
+        for layer = 1, 3 do
+            local node = nodes[layer]
+            if node and not ProgressionManager.isTreeNodeUnlocked(node.id) then
+                targetNode = node; break
+            end
+        end
+
+        local infoY = GRAPH_Y + GRAPH_H - 88
+        love.graphics.setColor(0.1, 0.1, 0.18, 0.9)
+        love.graphics.rectangle("fill", GRAPH_X + 8, infoY, GRAPH_W - 16, 80, 6, 6)
+        love.graphics.setColor(dim.color[1], dim.color[2], dim.color[3], 0.5)
+        love.graphics.rectangle("line", GRAPH_X + 8, infoY, GRAPH_W - 16, 80, 6, 6)
+
+        if targetNode then
+            Font.set(13)
+            love.graphics.setColor(dim.color)
+            love.graphics.printf(T(targetNode.nameKey), GRAPH_X + 12, infoY + 8, GRAPH_W - 24, "left")
+            Font.set(11)
+            love.graphics.setColor(0.75, 0.78, 0.82)
+            love.graphics.printf(T(targetNode.descKey), GRAPH_X + 12, infoY + 28, GRAPH_W - 24, "left")
+            -- 费用
+            local affordable = pts >= (targetNode.cost or 0)
+            if affordable then
+                love.graphics.setColor(0.4, 0.85, 0.45)
+            else
+                love.graphics.setColor(0.85, 0.4, 0.4)
+            end
+            love.graphics.printf(
+                string.format("费用 %d 点  [ Enter 解锁 ]", targetNode.cost or 0),
+                GRAPH_X + 12, infoY + 56, GRAPH_W - 24, "left")
+        else
+            Font.set(13)
+            love.graphics.setColor(dim.color)
+            love.graphics.printf(dim.label .. " — 已全部解锁 ✓", GRAPH_X + 12, infoY + 28, GRAPH_W - 24, "center")
+        end
     end
 end
 

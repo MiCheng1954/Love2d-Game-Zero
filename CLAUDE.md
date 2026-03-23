@@ -9,7 +9,7 @@
 - **游戏类型**：幸存者类射击游戏（类 Vampire Survivors），俯视角，WASD 移动，自动攻击
 - **技术栈**：Love2D 11.x + Lua 5.1（LuaJIT），窗口 1280×720
 - **项目路径**：`D:\WorkSpace_Love2d\Zero`
-- **当前进度**：Phase 10 已完成，下一阶段为 Phase 11（HUD 与 UI）
+- **当前进度**：Phase 13 已完成，下一阶段为 Phase 14
 
 ---
 
@@ -24,11 +24,19 @@ Zero/
 │   ├── synergies.lua         -- Tag 羁绊配置（6 tag × 2 档）
 │   ├── fusion.lua            -- 武器融合配方表
 │   ├── upgrades.lua          -- 升级奖励配置
+│   ├── characters.lua        -- 角色配置（engineer/berserker/phantom，含 skillTree/milestones）
+│   ├── buffs.lua             -- Buff 定义表（timer 型 + stack 型）
+│   ├── achievements.lua      -- 成就配置（框架 shell，待填充）
 │   └── i18n/zh.lua           -- 中文文本配置（所有 UI 文本通过 T("key") 访问）
 ├── src/
 │   ├── states/               -- 游戏状态（stateManager.lua 管理）
 │   │   ├── stateManager.lua  -- 状态机，支持 push/pop 覆盖层
 │   │   ├── game.lua          -- 游戏主状态（最核心，各系统接入点）
+│   │   ├── menu.lua          -- 主菜单（角色选择/成长/成就/退出）
+│   │   ├── characterSelect.lua -- 角色选择界面（3 卡片，← → 切换）
+│   │   ├── progression.lua   -- 局外成长界面（通用加成 + 技能树）
+│   │   ├── achievements.lua  -- 成就列表界面
+│   │   ├── gameover.lua      -- 游戏结束（结算、通用/里程碑点数结算）
 │   │   ├── bagUI.lua         -- 背包 UI（BROWSE/PLACE/SELECT/FUSION 四模式）
 │   │   ├── upgrade.lua       -- 升级奖励选择界面
 │   │   ├── console.lua       -- 开发者控制台（` 键，仅游戏状态可用）
@@ -48,7 +56,11 @@ Zero/
 │   │   ├── collision.lua     -- 碰撞检测
 │   │   ├── experience.lua    -- 经验升级系统
 │   │   ├── camera.lua        -- 摄像机
-│   │   └── input.lua         -- 输入抽象层
+│   │   ├── input.lua         -- 输入抽象层
+│   │   ├── buffManager.lua   -- Buff 管理器（Phase 10.1）
+│   │   ├── progressionManager.lua -- 局外成长数据管理（Phase 13）
+│   │   ├── milestoneManager.lua   -- 局内里程碑追踪（Phase 13）
+│   │   └── achievementManager.lua -- 成就系统（Phase 13 框架）
 │   └── utils/                -- 工具库
 │       ├── font.lua          -- 字体管理（Font.set/reset）
 │       ├── i18n.lua          -- 多语言访问器
@@ -174,7 +186,7 @@ cd D:/WorkSpace_Love2d/Zero
 python tests/run_lupa.py          # 运行所有测试
 python tests/run_lupa.py tests/systems/test_fusion.lua  # 运行单个文件
 ```
-当前测试成绩：**86 passed, 0 failed**
+当前测试成绩：**201 passed, 0 failed**（含 Phase 13 progressionManager/milestoneManager 新增测试）
 
 新增测试时遵循：
 - 每个测试文件对应一个系统/实体
@@ -215,13 +227,37 @@ Bug 和需求数据优先从以下路径读取：
 
 ---
 
-## 八、下一阶段（Phase 11）预览
+## 八、下一阶段（Phase 14）预览
 
-**主题**：HUD 与 UI
-- 常驻 HUD 完善
-- 触发器 UI
-- 主菜单界面
-- 详细计划见：`docs/plans/phase11.md`
+**主题**：待规划（Phase 13 局外系统刚完成）
+- 成就内容填充（当前 achievements.lua 为空 shell）
+- 更多角色专属成长节点内容
+- 场景/关卡系统
+- 详细计划见：`docs/plans/phase14.md`（待创建）
+
+---
+
+## 九、局外成长系统（Phase 13）
+
+### 9.1 双轨成长
+- **通用加成**（Track 1）：结算后获得通用成长点数，在成长界面花费升级 6 项属性
+  - attack +5%/级（最多5级）、speed +5%/级、maxhp +10/级、critrate +3%/级、pickup +10%/级、expmult +10%/级
+- **角色专属技能树**（Track 2）：局内里程碑 → 里程碑点数 → 解锁角色技能树节点
+
+### 9.2 三个角色
+| 角色 | characterId | 专属技能 | 技能树主题 |
+|------|-------------|---------|----------|
+| 工程师 | `engineer` | overload | 超载时长/冷却/武器强化 |
+| 狂战士 | `berserker` | rage/battle_cry | 战吼/狂怒强化 |
+| 幻影 | `phantom` | mana_shield/soul_drain | 护盾/灵魂/移速 |
+
+### 9.3 成长效果应用时机
+- **Player.new()** 末尾：读取 `ProgressionManager.getCommonBonus()` 直接修改基础属性；读取 `getUnlockedNodes(charId)` 遍历调用每个节点的 `effect(player)` 闭包
+- **pickup/expmult 加成**：存入 `player._progressionPickupBonus` / `player._progressionExpBonus`，由 `game.lua` 的 `mergedPsb` 合并（TODO）
+
+### 9.4 数据文件
+- `data/progression.json`：通用点数、通用等级、各角色已解锁节点
+- `data/achievements.json`：已解锁成就 id 列表
 
 ---
 
