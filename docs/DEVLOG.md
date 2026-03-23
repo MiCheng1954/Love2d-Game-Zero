@@ -4,6 +4,54 @@
 
 ---
 
+## [2026-03-24] Phase 13 — 局外系统
+
+**做了什么：** 实现双轨局外成长体系（通用加成 + 角色专属技能树）、3个差异化角色、里程碑系统、成就系统框架。
+
+### 新增文件
+
+| 文件 | 内容 |
+|------|------|
+| `config/characters.lua` | 3个角色完整配置（工程师/狂战士/幽灵）：基础属性/专属技能/里程碑定义/局外分支技能树 |
+| `config/achievements.lua` | 成就配置空壳（预留结构，后续快速添加成就条目） |
+| `src/states/characterSelect.lua` | 角色选择界面：三张卡片，← → 切换，Enter 确认，ESC 返回 |
+| `src/states/progression.lua` | 局外成长界面：Q/E 切换「通用加成商店」和「英雄技能树」两个面板 |
+| `src/states/achievements.lua` | 成就列表界面：已解锁/未解锁分组显示，空列表友好提示 |
+| `src/systems/progressionManager.lua` | 局外成长数据管理：读写 progression.json，通用加成+角色技能树双轨 |
+| `src/systems/milestoneManager.lua` | 里程碑系统：条件注册/事件通知/点数结算，按角色隔离 |
+| `src/systems/achievementManager.lua` | 成就管理器框架：注册/通知/解锁/持久化接口 |
+| `tests/systems/test_progressionManager.lua` | 31个测试用例（通用加成/里程碑点数/技能树前置解锁） |
+| `tests/systems/test_milestoneManager.lua` | 23个测试用例（条件触发/角色隔离/不重复完成） |
+
+### 修改文件
+
+| 文件 | 内容 |
+|------|------|
+| `src/entities/player.lua` | `characterId = "default"` → `"engineer"` |
+| `config/skills.lua` | overload 专属角色改为 `"engineer"` |
+| `src/states/game.lua` | 接入 MilestoneManager + ProgressionManager；10处事件通知（击杀/boss/技能激活/tick/武器放置） |
+| `src/states/gameover.lua` | 结算计算成长点数（每50击杀+1 / 每分钟+1 / 每Boss+5）并写入 progressionManager；显示里程碑点数 |
+| `src/states/menu.lua` | 「开始游戏」→ charSelect，新增「成长」「成就」菜单项 |
+| `main.lua` | 注册 characterSelect/progression/achievements 三个新状态 |
+| `config/i18n/zh.lua` | 新增角色名/描述/技能树节点/里程碑/成长界面/成就界面/结算点数等 100+ 文本 key |
+
+### 系统架构
+
+**双轨成长：**
+- **通用加成轨**：每局结算按表现给点数（击杀/存活/Boss），花在攻击/速度/HP/暴击/拾取/经验 6个属性的升级档位上
+- **角色专属轨**：完成与角色特性绑定的里程碑（工程师→超载/武器数；狂战士→击杀/低血量；幽灵→闪现/闪避），获得里程碑点数解锁专属分支技能树节点
+
+**3个角色：**
+- **工程师**（`engineer`）：科技/超载风格，专属 overload 技能，技能树含超载强化主干+武器强化主干
+- **狂战士**（`berserker`）：血量越低攻击越高，HP+50%/ATK+30%，技能树含血怒主干+冲刺强化主干
+- **幽灵**（`phantom`）：高速/闪避，Speed+40%/HP-20%，技能树含疾影（闪现强化）主干+减速领域主干
+
+**主菜单流程：** 主菜单 → 角色选择 → 场景选择 → 游戏
+
+**测试：** 201 passed, 0 failed（新增 54 个用例）
+
+---
+
 ## [2026-03-24] Phase 12 — 场景扩展
 
 **做了什么：** 实现多场景框架，新增苍茫平原与封闭竞技场两个可玩场景，专属冲锋者 Boss，场景选择界面；修复 Bug #45–#53。
