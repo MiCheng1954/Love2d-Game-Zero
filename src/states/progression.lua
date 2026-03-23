@@ -146,10 +146,10 @@ function Progression:update(dt)
         end
     end
 
-    -- Tab 切换：Q / E
-    if Input.isPressed("bagLeft") then        -- Q
+    -- Tab 切换：Q / E（Bug#54：bagLeft/bagRight不存在，改为 skill2/skill3）
+    if Input.isPressed("skill2") then        -- Q
         self._tab = TAB_COMMON
-    elseif Input.isPressed("bagRight") then   -- E
+    elseif Input.isPressed("skill3") then   -- E
         self._tab = TAB_TREE
     end
 

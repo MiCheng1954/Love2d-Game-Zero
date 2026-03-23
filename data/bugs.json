@@ -789,5 +789,20 @@
       "screenshot": "D:/WorkSpace_Love2d/Zero/data/logs/screenshot_20260324_003346.png"
     },
     "status": "fixed"
+  },
+  {
+    "id": 54,
+    "desc": "局外成长界面无法通过qe切换",
+    "time": "2026-03-24 01:45:43",
+    "priority": 3,
+    "log": {
+      "level": 0,
+      "hp": 0,
+      "elapsed": 0.0,
+      "enemies": 0,
+      "logSnapshot": "logs/bug_54_20260324_014543.log",
+      "screenshot": "D:/WorkSpace_Love2d/Zero/data/logs/screenshot_20260324_014524.png"
+    },
+    "status": "fixed"
   }
 ]
